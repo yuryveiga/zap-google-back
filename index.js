@@ -13,7 +13,7 @@ app.use(cors());
 let lastQR = null;
 
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth_info'));
+    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth_info_teste'));
     const sock = makeWASocket({
         auth: state,
         logger: pino({ level: 'silent' }),
