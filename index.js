@@ -1,81 +1,51 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
-const QRCode = require('qrcode');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-// Estado global
-let qrBase64 = null;
-let status = "starting";
+let qrCodeBase64 = null;
+let status = 'starting';
 
-// Cliente WhatsApp
 const client = new Client({
-    authStrategy: new LocalAuth({
-        dataPath: './auth_info'
-    }),
+    authStrategy: new LocalAuth(),
     puppeteer: {
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--disable-software-rasterizer',
-            '--no-zygote',
-            '--single-process'
-        ],
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
     }
 });
 
-// Evento QR
 client.on('qr', async (qr) => {
-    console.log('📲 QR Code gerado');
+    console.log('QR gerado');
 
-    try {
-        qrBase64 = await QRCode.toDataURL(qr);
-        status = "pending";
-    } catch (err) {
-        console.error('Erro ao gerar QR:', err);
-    }
+    qrCodeBase64 = await qrcode.toDataURL(qr);
+    status = 'pending';
 });
 
-// Cliente pronto
 client.on('ready', () => {
-    console.log('✅ WhatsApp conectado!');
-    status = "connected";
-    qrBase64 = null;
+    console.log('WhatsApp conectado');
+    status = 'connected';
+    qrCodeBase64 = null;
 });
 
-// Falha de autenticação
-client.on('auth_failure', msg => {
-    console.error('❌ Falha na autenticação:', msg);
-    status = "error";
+client.on('disconnected', () => {
+    console.log('WhatsApp desconectado');
+    status = 'disconnected';
 });
 
-// Desconectado
-client.on('disconnected', reason => {
-    console.log('⚠️ Desconectado:', reason);
-    status = "disconnected";
-});
+client.initialize();
 
-// Endpoint QR
-app.get('/get-qr', (req, res) => {
-    res.json({
-        status,
-        qr: qrBase64
-    });
-});
-
-// Healthcheck
 app.get('/', (req, res) => {
     res.send('🚀 API WhatsApp rodando');
 });
 
-// Inicializa
-client.initialize();
+app.get('/get-qr', (req, res) => {
+    res.json({
+        status,
+        qr: qrCodeBase64
+    });
+});
 
-// Start server
-app.listen(port, () => {
-    console.log(`🌐 Servidor rodando na porta ${port}`);
+app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
 });
