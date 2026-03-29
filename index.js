@@ -32,10 +32,18 @@ const client = new Client({
 
 // ─── Helper: retry com delay ──────────────────────────────────────────────────
 
+// Substitua a função withRetry por essa versão com timeout:
+async function withTimeout(fn, ms = 10000) {
+  return Promise.race([
+    fn(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout após ${ms}ms`)), ms))
+  ]);
+}
+
 async function withRetry(fn, retries = 3, delay = 2000) {
   for (let i = 0; i < retries; i++) {
     try {
-      return await fn();
+      return await withTimeout(fn);
     } catch (err) {
       console.error(`Tentativa ${i + 1}/${retries} falhou: ${err.message}`);
       if (i < retries - 1) await new Promise(r => setTimeout(r, delay));
