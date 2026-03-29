@@ -33,7 +33,6 @@ function createClient(id) {
     authStrategy: new LocalAuth({ clientId: id }),
     puppeteer: {
       headless: true,
-      userDataDir: path.join(process.cwd(), '.wweb_cache_' + id),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
