@@ -37,8 +37,12 @@ function createClient(id) {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process'
       ],
+      executablePath: process.env.CHROME_PATH || undefined
     }
   });
 
@@ -173,6 +177,26 @@ app.get('/', (req, res) => {
 
 app.get('/status', (req, res) => {
   res.json(clientStates);
+});
+
+// Rota de compatibilidade para visualizar QRs rapidamente no production
+app.get('/get-qr', (req, res) => {
+  let html = `
+    <html>
+      <body style="background:#111b21; color:white; font-family:sans-serif; display:flex; gap:20px; text-align:center; padding:40px">
+  `;
+  ACCOUNTS.forEach(id => {
+    const s = clientStates[id];
+    html += `
+      <div style="background:#202c33; padding:20px; border-radius:12px; min-width:250px">
+        <h3>${id}</h3>
+        <p>Status: <b>${s.status}</b></p>
+        ${s.qr ? `<img src="${s.qr}" style="background:white; padding:10px; border-radius:8px"/>` : '<p>Sem QR pendente</p>'}
+      </div>
+    `;
+  });
+  html += `</body></html>`;
+  res.send(html);
 });
 
 app.post('/initialize/:accountId', async (req, res) => {
