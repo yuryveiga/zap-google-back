@@ -24,6 +24,10 @@ ACCOUNTS.forEach(id => {
   clientStates[id] = { status: 'starting', qr: null, ready: false };
 });
 
+ACCOUNTS.forEach(id => {
+  clients[id] = createClient(id);
+});
+
 function createClient(id) {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: id }),
@@ -39,7 +43,7 @@ function createClient(id) {
   });
 
   client.on('qr', async (qr) => {
-    console.log(`[${id}] QR gerado`);
+    console.log(`[${id}] QR Code recebido`);
     const base64 = await qrcode.toDataURL(qr);
     clientStates[id].qr = base64;
     clientStates[id].status = 'pending';
@@ -48,17 +52,37 @@ function createClient(id) {
   });
 
   client.on('ready', () => {
-    console.log(`[${id}] WhatsApp conectado`);
+    console.log(`[${id}] Cliente pronto e conectado`);
     clientStates[id].status = 'connected';
     clientStates[id].ready = true;
     clientStates[id].qr = null;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
+  client.on('authenticated', () => {
+    console.log(`[${id}] Autenticado com sucesso`);
+    clientStates[id].status = 'authenticated';
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
+
+  client.on('auth_failure', (msg) => {
+    console.error(`[${id}] Falha na autenticação:`, msg);
+    clientStates[id].status = 'disconnected';
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
+
+  client.on('loading_screen', (percent, message) => {
+    console.log(`[${id}] Carregando: ${percent}% - ${message}`);
+    clientStates[id].status = 'loading';
+    clientStates[id].loadingPercent = percent;
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
+
   client.on('disconnected', (reason) => {
-    console.log(`[${id}] WhatsApp desconectado:`, reason);
+    console.log(`[${id}] Desconectado:`, reason);
     clientStates[id].status = 'disconnected';
     clientStates[id].ready = false;
+    clientStates[id].qr = null;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
@@ -89,16 +113,8 @@ function createClient(id) {
     }
   });
 
-  client.initialize().catch(err => {
-    console.error(`[${id}] Erro ao inicializar:`, err.message);
-  });
-
   return client;
 }
-
-ACCOUNTS.forEach(id => {
-  clients[id] = createClient(id);
-});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -157,6 +173,29 @@ app.get('/', (req, res) => {
 
 app.get('/status', (req, res) => {
   res.json(clientStates);
+});
+
+app.post('/initialize/:accountId', async (req, res) => {
+  const { accountId } = req.params;
+  const client = clients[accountId];
+  if (!client) return res.status(404).json({ error: 'Conta nao encontrada' });
+  
+  // Se ja estiver conectando ou conectado, ignora
+  if (clientStates[accountId].status === 'pending' || clientStates[accountId].ready || clientStates[accountId].status === 'initializing') {
+    return res.json({ status: clientStates[accountId].status });
+  }
+  
+  console.log(`[${accountId}] Inicializacao manual iniciada`);
+  clientStates[accountId].status = 'initializing';
+  io.emit('status_update', { accountId, ...clientStates[accountId] });
+  
+  client.initialize().catch(err => {
+    console.error(`[${accountId}] Erro na inicializacao:`, err.message);
+    clientStates[accountId].status = 'disconnected';
+    io.emit('status_update', { accountId, ...clientStates[accountId] });
+  });
+  
+  res.json({ ok: true });
 });
 
 // Lista todos os chats (Unificado)

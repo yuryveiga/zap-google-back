@@ -409,20 +409,34 @@ socket.on('status_update', (data) => {
   }
 });
 
-function updateAccountUI({ accountId, status, qr }) {
+function updateAccountUI({ accountId, status, qr, loadingPercent }) {
   const container = document.getElementById('qr-' + accountId);
   const statusEl = document.getElementById('status-' + accountId);
   
   if (status === 'connected') {
     container.innerHTML = '<svg width="80" height="80" viewBox="0 0 24 24" fill="#00a884"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>';
     statusEl.innerHTML = '<span class="status-ready">CONECTADO</span>';
+  } else if (status === 'initializing' || status === 'loading') {
+    container.innerHTML = '<div class="loading-spinner" style="margin:0"></div>';
+    statusEl.textContent = status === 'loading' ? `Carregando (${loadingPercent || 0}%)` : 'Iniciando navegador...';
   } else if (status === 'pending' && qr) {
     container.innerHTML = `<img src="${qr}"/>`;
     statusEl.textContent = 'Escaneie o QR Code';
-  } else if (status === 'disconnected') {
-    container.innerHTML = '<div class="loading-spinner" style="margin:0"></div>';
-    statusEl.textContent = 'Desconectado';
+  } else {
+    // Starting ou Disconnected
+    container.innerHTML = `<button style="background:var(--accent); color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer;" onclick="startAccount('${accountId}')">Conectar</button>`;
+    statusEl.textContent = 'Clique para iniciar';
   }
+}
+
+async function startAccount(accountId) {
+    const statusEl = document.getElementById('status-' + accountId);
+    statusEl.textContent = 'Solicitando...';
+    try {
+        await fetch('/initialize/' + accountId, { method: 'POST' });
+    } catch (e) {
+        statusEl.textContent = 'Erro ao iniciar';
+    }
 }
 
 function enterApp() {
