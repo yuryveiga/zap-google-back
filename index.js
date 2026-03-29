@@ -1,36 +1,19 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
+const QRCode = require('qrcode');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// 1. FUNÇÃO DE BUSCA (Coloque aqui)
-const getChromePath = () => {
-    const paths = [
-        '/usr/bin/google-chrome-stable',
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
-        '/app/.apt/usr/bin/google-chrome'
-    ];
-    for (const path of paths) {
-        if (fs.existsSync(path)) {
-            console.log(`✅ Chrome encontrado em: ${path}`);
-            return path;
-        }
-    }
-    console.error("❌ Nenhum binário do Chrome encontrado!");
-    return null;
-};
+// Estado global
+let qrBase64 = null;
+let status = "loading";
 
-// 2. CONFIGURAÇÃO DO CLIENTE (Substitua o seu antigo por este)
+// Cliente WhatsApp
 const client = new Client({
     authStrategy: new LocalAuth({ dataPath: 'auth_info' }),
     puppeteer: {
         headless: true,
-        executablePath: getChromePath(), // Chama a função acima
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -41,4 +24,43 @@ const client = new Client({
     }
 });
 
-// ... resto do seu código (client.on('qr'), app.get, etc)
+// Evento QR
+client.on('qr', async (qr) => {
+    console.log('📲 QR Code gerado');
+
+    qrBase64 = await QRCode.toDataURL(qr);
+    status = "pending";
+});
+
+// Evento pronto
+client.on('ready', () => {
+    console.log('✅ WhatsApp conectado!');
+    status = "connected";
+});
+
+// Evento erro
+client.on('auth_failure', msg => {
+    console.error('❌ Falha na autenticação:', msg);
+    status = "error";
+});
+
+// Endpoint para frontend
+app.get('/get-qr', (req, res) => {
+    res.json({
+        status,
+        qrUrl: qrBase64
+    });
+});
+
+// Healthcheck
+app.get('/', (req, res) => {
+    res.send('🚀 WhatsApp API rodando');
+});
+
+// Inicializa cliente
+client.initialize();
+
+// Start server
+app.listen(port, () => {
+    console.log(`🌐 Servidor rodando na porta ${port}`);
+});

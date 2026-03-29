@@ -3,122 +3,40 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Connect - Admin</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #f0f2f5;
-            margin: 0;
-        }
-
-        .card {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            width: 350px;
-        }
-
-        h2 {
-            color: #075e54;
-            margin-bottom: 0.5rem;
-        }
-
-        p {
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        #qr-container {
-            min-height: 250px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px dashed #ddd;
-            border-radius: 8px;
-            margin: 1.5rem 0;
-            background: #fafafa;
-        }
-
-        img {
-            width: 100%;
-            height: auto;
-            border-radius: 4px;
-            transition: opacity 0.3s;
-        }
-
-        .status {
-            font-weight: bold;
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            display: inline-block;
-            text-transform: uppercase;
-        }
-
-        .pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .connected {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .loading {
-            background: #e2e3e5;
-            color: #383d41;
-        }
-
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-        }
-    </style>
+    <title>WhatsApp QR</title>
 </head>
 
-<body>
+<body style="text-align:center; font-family:Arial;">
 
-    <div class="card">
-        <h2>WhatsApp Link</h2>
-        <p>Escaneie para conectar o bot</p>
-
-        <div id="status-badge" class="status loading">Iniciando...</div>
-
-        <div id="qr-container">
-            <div id="loader">Aguardando servidor...</div>
-        </div>
-
-        <p style="font-size: 0.75rem;">A atualização é automática a cada 5 segundos.</p>
-    </div>
+    <h2>Conectar WhatsApp</h2>
+    <div id="status">Carregando...</div>
+    <div id="qr"></div>
 
     <script>
-        // IMPORTANTE: Usar caminho relativo "/" faz com que o HTML 
-        // converse com o Railway não importa qual seja a URL.
-        const API_URL = "/get-qr";
-
-        const qrContainer = document.getElementById('qr-container');
-        const statusBadge = document.getElementById('status-badge');
-
-        async function checkStatus() {
+        async function atualizar() {
             try {
-                const response = await fetch(API_URL);
-                if (!response.ok) throw new Error("Erro na rede");
-                const data = await response.json();
+                const res = await fetch('/get-qr');
+                const data = await res.json();
 
-                if (data.status === "loading") {
-                    qrContainer.innerHTML = "<span>Gerando sessão...</span>";
-                    statusBadge.innerText = "Aguardando WhatsApp";
-                    statusBadge.className = "status loading";
+                document.getElementById('status').innerText = data.status;
+
+                if (data.qrUrl) {
+                    document.getElementById('qr').innerHTML =
+                        `<img src="${data.qrUrl}" width="300"/>`;
                 }
-                else if (data.status === "pending" && data.qrUrl) {
-                    // Só atualiza a imagem se ela mudar ou não existir
-                    const currentImg = qrContainer.querySelector('img');
-                    if (!currentImg || currentImg.src !== data.
+
+                if (data.status !== 'connected') {
+                    setTimeout(atualizar, 3000);
+                }
+
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        atualizar();
+    </script>
+
+</body>
+
+</html>

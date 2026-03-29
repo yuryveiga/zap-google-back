@@ -1,16 +1,3 @@
-# Dependências (nunca envie a pasta node_modules)
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Segurança e Sessão (O MAIS IMPORTANTE)
-# Isso evita que o seu login do WhatsApp seja exposto
 auth_info/
-
-# Arquivos do Sistema Operacional
-.DS_Store
-Thumbs.db
-
-# Variáveis de ambiente locais
 .env
