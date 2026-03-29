@@ -24,17 +24,8 @@ ACCOUNTS.forEach(id => {
   clientStates[id] = { status: 'starting', qr: null, ready: false };
 });
 
-<<<<<<< HEAD
 ACCOUNTS.forEach(id => {
   clients[id] = createClient(id);
-=======
-ACCOUNTS.forEach((id, index) => {
-  // Inicialização sequencial com delay de 5s para evitar conflito de puppeteer
-  setTimeout(() => {
-    console.log(`[${id}] Inicializando cliente...`);
-    clients[id] = createClient(id);
-  }, index * 5000);
->>>>>>> 50788916cc7d011a82c60dc939cafea067686f19
 });
 
 function createClient(id) {
@@ -70,11 +61,8 @@ function createClient(id) {
 
   client.on('authenticated', () => {
     console.log(`[${id}] Autenticado com sucesso`);
-<<<<<<< HEAD
     clientStates[id].status = 'authenticated';
     io.emit('status_update', { accountId: id, ...clientStates[id] });
-=======
->>>>>>> 50788916cc7d011a82c60dc939cafea067686f19
   });
 
   client.on('auth_failure', (msg) => {
@@ -83,16 +71,11 @@ function createClient(id) {
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
-<<<<<<< HEAD
   client.on('loading_screen', (percent, message) => {
     console.log(`[${id}] Carregando: ${percent}% - ${message}`);
     clientStates[id].status = 'loading';
     clientStates[id].loadingPercent = percent;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
-=======
-  client.on('change_state', (state) => {
-    console.log(`[${id}] Estado alterado para:`, state);
->>>>>>> 50788916cc7d011a82c60dc939cafea067686f19
   });
 
   client.on('disconnected', (reason) => {
@@ -130,13 +113,6 @@ function createClient(id) {
     }
   });
 
-<<<<<<< HEAD
-=======
-  client.initialize().catch(err => {
-    console.error(`[${id}] Erro crítico na inicialização:`, err.message);
-  });
-
->>>>>>> 50788916cc7d011a82c60dc939cafea067686f19
   return client;
 }
 
@@ -204,8 +180,7 @@ app.post('/initialize/:accountId', async (req, res) => {
   const client = clients[accountId];
   if (!client) return res.status(404).json({ error: 'Conta nao encontrada' });
   
-  // Se ja estiver conectando ou conectado, ignora
-  if (clientStates[accountId].status === 'pending' || clientStates[accountId].ready || clientStates[accountId].status === 'initializing') {
+  if (clientStates[accountId].status === 'pending' || clientStates[accountId].ready || clientStates[accountId].status === 'initializing' || clientStates[accountId].status === 'loading') {
     return res.json({ status: clientStates[accountId].status });
   }
   
@@ -222,14 +197,11 @@ app.post('/initialize/:accountId', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Lista todos os chats (Unificado)
 app.get('/chats', async (req, res) => {
   try {
     const allResults = [];
-    
     for (const id of ACCOUNTS) {
       if (!clientStates[id].ready) continue;
-      
       try {
         const chats = await withRetry(() => clients[id].getChats());
         const mapped = chats.slice(0, 40).map(c => {
@@ -249,37 +221,22 @@ app.get('/chats', async (req, res) => {
           };
         });
         allResults.push(...mapped);
-      } catch (e) {
-        console.error(`Erro ao carregar chats de ${id}:`, e.message);
-      }
+      } catch (e) { console.error(`Erro em /chats (${id}):`, e.message); }
     }
-
-    // Ordena por timestamp da última mensagem
-    allResults.sort((a, b) => {
-      const tA = a.lastMessage?.timestamp || 0;
-      const tB = b.lastMessage?.timestamp || 0;
-      return tB - tA;
-    });
-
+    allResults.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
     res.json(allResults);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Mensagens de um chat
 app.get('/messages/:fullId', async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
-    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Conta offline' });
-
+    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
     const limit = parseInt(req.query.limit) || 50;
     const chat = await withRetry(() => clients[accountId].getChatById(chatId));
     const msgs = await withRetry(() => chat.fetchMessages({ limit }));
-
     try { await chat.sendSeen(); } catch (_) { }
-
-    const result = msgs.map(m => ({
+    res.json(msgs.map(m => ({
       id: m.id._serialized,
       body: m.body || (m.hasMedia ? 'Midia' : ''),
       fromMe: m.fromMe,
@@ -287,53 +244,35 @@ app.get('/messages/:fullId', async (req, res) => {
       type: m.type,
       hasMedia: m.hasMedia,
       ack: m.ack,
-    }));
-
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Enviar mensagem
 app.post('/send', async (req, res) => {
   try {
     const { to, body } = req.body;
     const { accountId, chatId } = parseId(to);
-    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Conta offline' });
-
+    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
     const msg = await clients[accountId].sendMessage(chatId, body);
     res.json({ ok: true, id: msg.id._serialized });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Avatar de um contato
 app.get('/avatar/:fullId', async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
     if (!clientStates[accountId].ready) return res.json({ url: null });
     const url = await clients[accountId].getProfilePicUrl(chatId).catch(() => null);
     res.json({ url: url || null });
-  } catch (err) {
-    res.json({ url: null });
-  }
+  } catch (err) { res.json({ url: null }); }
 });
 
-// Info de contato
 app.get('/contact/:fullId', async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
     if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
-    
     const contact = await clients[accountId].getContactById(chatId).catch(() => null);
-    
-    if (!contact) {
-      const number = chatId.split('@')[0];
-      return res.json({ id: req.params.fullId, name: number, number });
-    }
-
+    if (!contact) return res.json({ id: req.params.fullId, name: chatId.split('@')[0] });
     res.json({
       id: `${accountId}:${contact.id._serialized}`,
       name: contact.name || contact.pushname || contact.id.user,
@@ -342,9 +281,7 @@ app.get('/contact/:fullId', async (req, res) => {
       isMe: contact.isMe || false,
       about: await contact.getAbout().catch(() => null),
     });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao buscar contato' });
-  }
+  } catch (err) { res.status(500).json({ error: 'Erro ao buscar contato' }); }
 });
 
 server.listen(PORT, () => {
