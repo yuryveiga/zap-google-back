@@ -1,15 +1,13 @@
 {
-  "name": "bot-whatsapp",
+  "name": "puppeteer-app",
   "version": "1.0.0",
-  "description": "Bot WhatsApp com Puppeteer",
+  "description": "App com Puppeteer",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "puppeteer": "24.40.0",
-    "qrcode": "1.5.4"
+    "puppeteer": "^24.40.0",
+    "zod": "^3.25.76"
   }
 }
