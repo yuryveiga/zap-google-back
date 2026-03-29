@@ -1,8 +1,16 @@
 {
   "name": "zap-google-back",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "engines": {
+    "node": "20.x"
+  },
+  "nixpacks": {
+    "pkgs": [
+      "nodejs",
+      "google-chrome",
+      "cacert"
+    ]
+  },
   "scripts": {
     "start": "node index.js"
   },
