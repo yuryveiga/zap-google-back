@@ -55,18 +55,23 @@ app.get('/get-qr', (req, res) => {
 });
 
 app.get('/qr', (req, res) => {
+  if (!qrCodeBase64) {
+    return res.send('<h2>QR ainda não gerado...</h2>');
+  }
+
+  res.setHeader('Content-Type', 'text/html');
+
   res.send(`
+    <!DOCTYPE html>
     <html>
       <head>
+        <title>QR WhatsApp</title>
+        <meta charset="UTF-8" />
         <meta http-equiv="refresh" content="5">
-        <title>QR Code WhatsApp</title>
       </head>
-      <body style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;">
+      <body style="text-align:center;font-family:Arial;">
         <h2>Escaneie o QR Code</h2>
-        ${qrCodeBase64
-      ? `<img src="${qrCodeBase64}" />`
-      : `<p>Gerando QR...</p>`
-    }
+        <img src="${qrCodeBase64}" style="width:300px;height:300px;" />
         <p>Status: ${status}</p>
       </body>
     </html>
