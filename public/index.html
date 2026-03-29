@@ -37,18 +37,25 @@
   html, body { height: 100%; overflow: hidden; background: var(--bg-app); font-family: var(--font); color: var(--text-primary); }
   #app { display: flex; height: 100vh; width: 100vw; }
 
-  /* QR Screen */
-  #qr-screen {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    width: 100%; height: 100%; gap: 24px; background: var(--bg-app);
-  }
-  #qr-screen h2 { font-size: 22px; font-weight: 600; }
-  #qr-screen p  { color: var(--text-secondary); font-size: 14px; text-align: center; max-width: 300px; }
-  #qr-img { width: 220px; height: 220px; border-radius: 12px; background: #fff; padding: 10px; display:flex; align-items:center; justify-content:center; }
-  #qr-img img { width: 100%; height: 100%; }
-  #qr-placeholder { display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 13px; }
-  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-meta); display: inline-block; margin-right: 6px; animation: pulse 1.5s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  #accounts-grid { display: flex; gap: 40px; justify-content: center; }
+  .account-card {
+    background: var(--bg-panel); padding: 24px; border-radius: 16px;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    width: 280px; box-shadow: 0 4px 20px rgba(0,0,0,.4);
+  }
+  .account-card h3 { font-size: 18px; color: var(--accent); }
+  .qr-container { 
+    width: 200px; height: 200px; background: #fff; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .qr-container img { width: 100%; height: 100%; }
+  .account-status { font-size: 13px; color: var(--text-secondary); text-align: center; }
+  .status-ready { color: var(--accent); font-weight: 600; }
+  .account-badge {
+    font-size: 10px; background: var(--bg-input); padding: 2px 6px; 
+    border-radius: 4px; color: var(--text-secondary); font-weight: 600;
+  }
 
   /* Sidebar */
   #sidebar {
@@ -216,14 +223,34 @@
 
   <!-- QR Screen -->
   <div id="qr-screen">
-    <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
-      <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#00a884"/>
-    </svg>
-    <h2>WhatsApp Web</h2>
-    <div id="qr-img">
-      <div id="qr-placeholder"><span class="status-dot"></span> Aguardando QR...</div>
+    <div style="text-align:center; margin-bottom: 20px">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="margin-bottom:10px">
+          <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#00a884"/>
+        </svg>
+        <h2>WhatsApp Web Multi-Conta</h2>
+        <p style="color:var(--text-secondary); font-size:14px; margin-top:8px">Conecte até 2 números simultaneamente</p>
     </div>
-    <p id="qr-label">Iniciando conexão...</p>
+    
+    <div id="accounts-grid">
+      <div class="account-card" id="card-acc1">
+        <h3>Conta 1</h3>
+        <div class="qr-container" id="qr-acc1">
+          <div class="loading-spinner" style="margin:0"></div>
+        </div>
+        <p class="account-status" id="status-acc1">Iniciando...</p>
+      </div>
+      <div class="account-card" id="card-acc2">
+        <h3>Conta 2</h3>
+        <div class="qr-container" id="qr-acc2">
+          <div class="loading-spinner" style="margin:0"></div>
+        </div>
+        <p class="account-status" id="status-acc2">Iniciando...</p>
+      </div>
+    </div>
+    
+    <button id="enter-btn" style="display:none; margin-top:30px; background:var(--accent); color:white; border:none; padding:12px 32px; border-radius:24px; cursor:pointer; font-weight:600" onclick="enterApp()">
+        Entrar na Central de Mensagens
+    </button>
   </div>
 
   <!-- Sidebar -->
@@ -369,30 +396,50 @@ async function loadContactInfo(contactId) {
 
 // ── Socket events ─────────────────────────────────────────────────────────────
 
-socket.on('status', ({ status, qr }) => {
+let accountStates = { acc1: {}, acc2: {} };
+
+socket.on('status_update', (data) => {
+  accountStates[data.accountId] = data;
+  updateAccountUI(data);
+  
+  // Se pelo menos uma conta estiver pronta, permite entrar
+  const anyReady = Object.values(accountStates).some(s => s.status === 'connected');
+  if (anyReady) {
+    document.getElementById('enter-btn').style.display = 'block';
+  }
+});
+
+function updateAccountUI({ accountId, status, qr }) {
+  const container = document.getElementById('qr-' + accountId);
+  const statusEl = document.getElementById('status-' + accountId);
+  
   if (status === 'connected') {
+    container.innerHTML = '<svg width="80" height="80" viewBox="0 0 24 24" fill="#00a884"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>';
+    statusEl.innerHTML = '<span class="status-ready">CONECTADO</span>';
+  } else if (status === 'pending' && qr) {
+    container.innerHTML = `<img src="${qr}"/>`;
+    statusEl.textContent = 'Escaneie o QR Code';
+  } else if (status === 'disconnected') {
+    container.innerHTML = '<div class="loading-spinner" style="margin:0"></div>';
+    statusEl.textContent = 'Desconectado';
+  }
+}
+
+function enterApp() {
     document.getElementById('qr-screen').style.display = 'none';
     document.getElementById('sidebar').style.display = 'flex';
     document.getElementById('chat-area').style.display = 'flex';
     loadChats();
-  } else if (status === 'pending' && qr) {
-    document.getElementById('qr-placeholder').innerHTML = `<img src="${qr}" style="width:200px;height:200px"/>`;
-    document.getElementById('qr-label').textContent = 'Escaneie com seu celular';
-  } else if (status === 'disconnected') {
-    document.getElementById('qr-screen').style.display = 'flex';
-    document.getElementById('sidebar').style.display = 'none';
-    document.getElementById('chat-area').style.display = 'none';
-    document.getElementById('qr-label').textContent = 'Desconectado. Recarregue a página.';
-  }
-});
+}
 
 socket.on('new_message', (msg) => {
-  const chat = allChats.find(c => c.id === msg.chatId);
+  const fullChatId = msg.accountId + ':' + msg.chatId;
+  const chat = allChats.find(c => c.id === fullChatId);
   if (chat) {
     chat.lastMessage = { body: msg.body, timestamp: msg.timestamp, fromMe: msg.fromMe };
     renderChatList(allChats);
   }
-  if (activeChat && msg.chatId === activeChat.id) {
+  if (activeChat && fullChatId === activeChat.id) {
     appendMessage(msg);
     scrollToBottom();
   }
@@ -435,7 +482,7 @@ function renderChatList(chats) {
             <span class="chat-time">${formatTime(c.lastMessage?.timestamp)}</span>
           </div>
           <div class="chat-row2">
-            <span class="chat-preview">${preview}</span>
+            <span class="chat-preview"><span class="account-badge">${c.accountId === 'acc1' ? 'Conta 1' : 'Conta 2'}</span> ${preview}</span>
             ${c.unreadCount > 0 ? `<span class="unread-badge">${c.unreadCount}</span>` : ''}
           </div>
         </div>
@@ -647,7 +694,10 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: activeChat.id, body })
     });
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+    alert('Erro ao enviar mensagem. Verifique a conexão.');
+  }
   finally { btn.disabled = false; input.focus(); }
 }
 

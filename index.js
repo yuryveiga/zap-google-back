@@ -14,24 +14,99 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(process.cwd(), 'public')));
 
-let qrCodeBase64 = null;
-let status = 'starting';
-let clientReady = false;
+// ─── Multi-Client Setup ───────────────────────────────────────────────────────
 
-const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu'
-    ],
-  }
+const ACCOUNTS = ['acc1', 'acc2'];
+const clients = {};
+const clientStates = {};
+
+ACCOUNTS.forEach(id => {
+  clientStates[id] = { status: 'starting', qr: null, ready: false };
+});
+
+function createClient(id) {
+  const client = new Client({
+    authStrategy: new LocalAuth({ clientId: id }),
+    puppeteer: {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu'
+      ],
+    }
+  });
+
+  client.on('qr', async (qr) => {
+    console.log(`[${id}] QR gerado`);
+    const base64 = await qrcode.toDataURL(qr);
+    clientStates[id].qr = base64;
+    clientStates[id].status = 'pending';
+    clientStates[id].ready = false;
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
+
+  client.on('ready', () => {
+    console.log(`[${id}] WhatsApp conectado`);
+    clientStates[id].status = 'connected';
+    clientStates[id].ready = true;
+    clientStates[id].qr = null;
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
+
+  client.on('disconnected', (reason) => {
+    console.log(`[${id}] WhatsApp desconectado:`, reason);
+    clientStates[id].status = 'disconnected';
+    clientStates[id].ready = false;
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
+
+  client.on('message', (msg) => {
+    io.emit('new_message', {
+      accountId: id,
+      id: msg.id._serialized,
+      chatId: msg.from,
+      body: msg.body || (msg.hasMedia ? 'Midia' : ''),
+      fromMe: false,
+      timestamp: msg.timestamp,
+      type: msg.type,
+      hasMedia: msg.hasMedia,
+    });
+  });
+
+  client.on('message_create', (msg) => {
+    if (msg.fromMe) {
+      io.emit('new_message', {
+        accountId: id,
+        id: msg.id._serialized,
+        chatId: msg.to,
+        body: msg.body || '',
+        fromMe: true,
+        timestamp: msg.timestamp,
+        type: msg.type,
+      });
+    }
+  });
+
+  client.initialize().catch(err => {
+    console.error(`[${id}] Erro ao inicializar:`, err.message);
+  });
+
+  return client;
+}
+
+ACCOUNTS.forEach(id => {
+  clients[id] = createClient(id);
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function parseId(fullId) {
+    const parts = fullId.split(':');
+    if (parts.length < 2) return { accountId: ACCOUNTS[0], chatId: fullId };
+    return { accountId: parts[0], chatId: parts.slice(1).join(':') };
+}
 
 async function withTimeout(fn, ms = 10000) {
   return Promise.race([
@@ -47,97 +122,27 @@ async function withRetry(fn, retries = 3, delay = 2000) {
     try {
       return await withTimeout(fn);
     } catch (err) {
-      console.error('Tentativa ' + (i + 1) + '/' + retries + ' falhou: ' + err.message);
       if (i < retries - 1) await new Promise(r => setTimeout(r, delay));
       else throw err;
     }
   }
 }
 
-async function waitReady(timeoutMs = 15000) {
-  if (clientReady) return;
-  const start = Date.now();
-  while (!clientReady) {
-    if (Date.now() - start > timeoutMs) throw new Error('Timeout aguardando cliente WhatsApp');
-    await new Promise(r => setTimeout(r, 500));
-  }
-}
-
-// ─── Eventos WhatsApp ─────────────────────────────────────────────────────────
-
-client.on('qr', async (qr) => {
-  console.log('QR gerado');
-  qrCodeBase64 = await qrcode.toDataURL(qr);
-  status = 'pending';
-  clientReady = false;
-  io.emit('status', { status, qr: qrCodeBase64 });
-});
-
-client.on('ready', () => {
-  console.log('WhatsApp conectado');
-  status = 'connected';
-  clientReady = true;
-  qrCodeBase64 = null;
-  io.emit('status', { status });
-});
-
-client.on('disconnected', (reason) => {
-  console.log('WhatsApp desconectado:', reason);
-  status = 'disconnected';
-  clientReady = false;
-  io.emit('status', { status });
-});
-
-client.on('auth_failure', (msg) => {
-  console.error('Auth failure:', msg);
-  status = 'disconnected';
-  clientReady = false;
-  io.emit('status', { status });
-});
-
-client.on('loading_screen', (percent, message) => {
-  console.log('Carregando: ' + percent + '% - ' + message);
-});
-
-client.on('message', (msg) => {
-  io.emit('new_message', {
-    id: msg.id._serialized,
-    chatId: msg.from,
-    body: msg.body || (msg.hasMedia ? 'Midia' : ''),
-    fromMe: false,
-    timestamp: msg.timestamp,
-    type: msg.type,
-    hasMedia: msg.hasMedia,
-  });
-});
-
-client.on('message_create', (msg) => {
-  if (msg.fromMe) {
-    io.emit('new_message', {
-      id: msg.id._serialized,
-      chatId: msg.to,
-      body: msg.body || '',
-      fromMe: true,
-      timestamp: msg.timestamp,
-      type: msg.type,
-    });
-  }
-});
-
-client.initialize().catch(err => {
-  console.error('Erro ao inicializar:', err.message);
-  console.error(err.stack);
-});
-
 // ─── Socket.io ────────────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
   console.log('Cliente conectado via socket');
-  socket.emit('status', { status, qr: qrCodeBase64 });
+  ACCOUNTS.forEach(id => {
+    socket.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
 
-  socket.on('send_message', async ({ to, body }) => {
+  socket.on('send_message', async ({ fullId, body }) => {
     try {
-      await client.sendMessage(to, body);
+      const { accountId, chatId } = parseId(fullId);
+      const client = clients[accountId];
+      if (client && clientStates[accountId].ready) {
+        await client.sendMessage(chatId, body);
+      }
     } catch (err) {
       socket.emit('error', { message: err.message });
     }
@@ -150,64 +155,63 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
 });
 
-app.get('/get-qr', (req, res) => {
-  res.json({ status, qr: qrCodeBase64 });
+app.get('/status', (req, res) => {
+  res.json(clientStates);
 });
 
-// Lista todos os chats
+// Lista todos os chats (Unificado)
 app.get('/chats', async (req, res) => {
   try {
-    if (status !== 'connected') {
-      return res.status(503).json({ error: 'WhatsApp nao conectado', status });
+    const allResults = [];
+    
+    for (const id of ACCOUNTS) {
+      if (!clientStates[id].ready) continue;
+      
+      try {
+        const chats = await withRetry(() => clients[id].getChats());
+        const mapped = chats.slice(0, 40).map(c => {
+          let name = c.name;
+          if (!name && c.id && c.id.user) name = c.id.user;
+          return {
+            id: `${id}:${c.id._serialized}`,
+            name: name || '',
+            isGroup: c.isGroup || false,
+            lastMessage: c.lastMessage ? {
+              body: c.lastMessage.body || (c.lastMessage.hasMedia ? 'Midia' : ''),
+              timestamp: c.lastMessage.timestamp || null,
+              fromMe: c.lastMessage.fromMe || false,
+            } : null,
+            unreadCount: c.unreadCount || 0,
+            accountId: id,
+          };
+        });
+        allResults.push(...mapped);
+      } catch (e) {
+        console.error(`Erro ao carregar chats de ${id}:`, e.message);
+      }
     }
 
-    await waitReady();
+    // Ordena por timestamp da última mensagem
+    allResults.sort((a, b) => {
+      const tA = a.lastMessage?.timestamp || 0;
+      const tB = b.lastMessage?.timestamp || 0;
+      return tB - tA;
+    });
 
-    const chats = await withRetry(() => client.getChats());
-
-    const result = chats.slice(0, 50).map(c => {
-      try {
-        // Fallback para o nome se c.name estiver vazio
-        let name = c.name;
-        if (!name && c.id && c.id.user) name = c.id.user;
-
-        return {
-          id: c.id._serialized,
-          name: name || '',
-          isGroup: c.isGroup || false,
-          lastMessage: c.lastMessage ? {
-            body: c.lastMessage.body || (c.lastMessage.hasMedia ? 'Midia' : ''),
-            timestamp: c.lastMessage.timestamp || null,
-            fromMe: c.lastMessage.fromMe || false,
-          } : null,
-          unreadCount: c.unreadCount || 0,
-        };
-      } catch (e) {
-        console.error('Erro ao mapear chat:', e.message);
-        return null;
-      }
-    }).filter(Boolean);
-
-    console.log('/chats retornou ' + result.length + ' conversas');
-    res.json(result);
+    res.json(allResults);
   } catch (err) {
-    console.error('Erro em /chats:', err.message);
-    console.error(err.stack);
     res.status(500).json({ error: err.message });
   }
 });
 
 // Mensagens de um chat
-app.get('/messages/:chatId', async (req, res) => {
+app.get('/messages/:fullId', async (req, res) => {
   try {
-    if (status !== 'connected') {
-      return res.status(503).json({ error: 'WhatsApp nao conectado' });
-    }
-
-    await waitReady();
+    const { accountId, chatId } = parseId(req.params.fullId);
+    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Conta offline' });
 
     const limit = parseInt(req.query.limit) || 50;
-    const chat = await withRetry(() => client.getChatById(req.params.chatId));
+    const chat = await withRetry(() => clients[accountId].getChatById(chatId));
     const msgs = await withRetry(() => chat.fetchMessages({ limit }));
 
     try { await chat.sendSeen(); } catch (_) { }
@@ -224,7 +228,6 @@ app.get('/messages/:chatId', async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error('Erro em /messages:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -232,25 +235,23 @@ app.get('/messages/:chatId', async (req, res) => {
 // Enviar mensagem
 app.post('/send', async (req, res) => {
   try {
-    if (status !== 'connected') {
-      return res.status(503).json({ error: 'WhatsApp nao conectado' });
-    }
     const { to, body } = req.body;
-    if (!to || !body) return res.status(400).json({ error: 'Campos to e body obrigatorios' });
-    const msg = await client.sendMessage(to, body);
+    const { accountId, chatId } = parseId(to);
+    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Conta offline' });
+
+    const msg = await clients[accountId].sendMessage(chatId, body);
     res.json({ ok: true, id: msg.id._serialized });
   } catch (err) {
-    console.error('Erro em /send:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // Avatar de um contato
-app.get('/avatar/:contactId', async (req, res) => {
+app.get('/avatar/:fullId', async (req, res) => {
   try {
-    if (status !== 'connected') return res.json({ url: null });
-    // Alguns contatos podem demorar pra carregar, retornamos nulo em caso de erro sem quebrar
-    const url = await client.getProfilePicUrl(req.params.contactId).catch(() => null);
+    const { accountId, chatId } = parseId(req.params.fullId);
+    if (!clientStates[accountId].ready) return res.json({ url: null });
+    const url = await clients[accountId].getProfilePicUrl(chatId).catch(() => null);
     res.json({ url: url || null });
   } catch (err) {
     res.json({ url: null });
@@ -258,26 +259,20 @@ app.get('/avatar/:contactId', async (req, res) => {
 });
 
 // Info de contato
-app.get('/contact/:contactId', async (req, res) => {
+app.get('/contact/:fullId', async (req, res) => {
   try {
-    if (status !== 'connected') return res.status(503).json({ error: 'Nao conectado' });
+    const { accountId, chatId } = parseId(req.params.fullId);
+    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
     
-    // Tenta pegar o contato (pode falhar se ainda não carregou)
-    const contact = await client.getContactById(req.params.contactId).catch(() => null);
+    const contact = await clients[accountId].getContactById(chatId).catch(() => null);
     
     if (!contact) {
-      // Se falhou, retorna o básico baseado no ID
-      const number = req.params.contactId.split('@')[0];
-      return res.json({
-        id: req.params.contactId,
-        name: number,
-        number: number,
-        isMe: false,
-      });
+      const number = chatId.split('@')[0];
+      return res.json({ id: req.params.fullId, name: number, number });
     }
 
     res.json({
-      id: contact.id._serialized,
+      id: `${accountId}:${contact.id._serialized}`,
       name: contact.name || contact.pushname || contact.id.user,
       pushname: contact.pushname || '',
       number: contact.id.user,
@@ -285,13 +280,10 @@ app.get('/contact/:contactId', async (req, res) => {
       about: await contact.getAbout().catch(() => null),
     });
   } catch (err) {
-    console.error('Erro em /contact:', err.message);
     res.status(500).json({ error: 'Erro ao buscar contato' });
   }
 });
 
-// ─── Start ────────────────────────────────────────────────────────────────────
-
 server.listen(PORT, () => {
-  console.log('Servidor rodando na porta ' + PORT);
+  console.log('Servidor unificado rodando na porta ' + PORT);
 });
