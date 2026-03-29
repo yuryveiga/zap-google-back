@@ -24,6 +24,14 @@ ACCOUNTS.forEach(id => {
   clientStates[id] = { status: 'starting', qr: null, ready: false };
 });
 
+ACCOUNTS.forEach((id, index) => {
+  // Inicialização sequencial com delay de 5s para evitar conflito de puppeteer
+  setTimeout(() => {
+    console.log(`[${id}] Inicializando cliente...`);
+    clients[id] = createClient(id);
+  }, index * 5000);
+});
+
 function createClient(id) {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: id }),
@@ -39,7 +47,7 @@ function createClient(id) {
   });
 
   client.on('qr', async (qr) => {
-    console.log(`[${id}] QR gerado`);
+    console.log(`[${id}] QR Code recebido`);
     const base64 = await qrcode.toDataURL(qr);
     clientStates[id].qr = base64;
     clientStates[id].status = 'pending';
@@ -48,15 +56,29 @@ function createClient(id) {
   });
 
   client.on('ready', () => {
-    console.log(`[${id}] WhatsApp conectado`);
+    console.log(`[${id}] Cliente pronto e conectado`);
     clientStates[id].status = 'connected';
     clientStates[id].ready = true;
     clientStates[id].qr = null;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
+  client.on('authenticated', () => {
+    console.log(`[${id}] Autenticado com sucesso`);
+  });
+
+  client.on('auth_failure', (msg) => {
+    console.error(`[${id}] Falha na autenticação:`, msg);
+    clientStates[id].status = 'disconnected';
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
+
+  client.on('change_state', (state) => {
+    console.log(`[${id}] Estado alterado para:`, state);
+  });
+
   client.on('disconnected', (reason) => {
-    console.log(`[${id}] WhatsApp desconectado:`, reason);
+    console.log(`[${id}] Desconectado:`, reason);
     clientStates[id].status = 'disconnected';
     clientStates[id].ready = false;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
@@ -90,15 +112,11 @@ function createClient(id) {
   });
 
   client.initialize().catch(err => {
-    console.error(`[${id}] Erro ao inicializar:`, err.message);
+    console.error(`[${id}] Erro crítico na inicialização:`, err.message);
   });
 
   return client;
 }
-
-ACCOUNTS.forEach(id => {
-  clients[id] = createClient(id);
-});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
