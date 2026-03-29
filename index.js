@@ -24,8 +24,17 @@ ACCOUNTS.forEach(id => {
   clientStates[id] = { status: 'starting', qr: null, ready: false };
 });
 
+<<<<<<< HEAD
 ACCOUNTS.forEach(id => {
   clients[id] = createClient(id);
+=======
+ACCOUNTS.forEach((id, index) => {
+  // Inicialização sequencial com delay de 5s para evitar conflito de puppeteer
+  setTimeout(() => {
+    console.log(`[${id}] Inicializando cliente...`);
+    clients[id] = createClient(id);
+  }, index * 5000);
+>>>>>>> 50788916cc7d011a82c60dc939cafea067686f19
 });
 
 function createClient(id) {
@@ -61,8 +70,11 @@ function createClient(id) {
 
   client.on('authenticated', () => {
     console.log(`[${id}] Autenticado com sucesso`);
+<<<<<<< HEAD
     clientStates[id].status = 'authenticated';
     io.emit('status_update', { accountId: id, ...clientStates[id] });
+=======
+>>>>>>> 50788916cc7d011a82c60dc939cafea067686f19
   });
 
   client.on('auth_failure', (msg) => {
@@ -71,11 +83,16 @@ function createClient(id) {
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
+<<<<<<< HEAD
   client.on('loading_screen', (percent, message) => {
     console.log(`[${id}] Carregando: ${percent}% - ${message}`);
     clientStates[id].status = 'loading';
     clientStates[id].loadingPercent = percent;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
+=======
+  client.on('change_state', (state) => {
+    console.log(`[${id}] Estado alterado para:`, state);
+>>>>>>> 50788916cc7d011a82c60dc939cafea067686f19
   });
 
   client.on('disconnected', (reason) => {
@@ -113,6 +130,13 @@ function createClient(id) {
     }
   });
 
+<<<<<<< HEAD
+=======
+  client.initialize().catch(err => {
+    console.error(`[${id}] Erro crítico na inicialização:`, err.message);
+  });
+
+>>>>>>> 50788916cc7d011a82c60dc939cafea067686f19
   return client;
 }
 
