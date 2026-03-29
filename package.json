@@ -1,5 +1,5 @@
 {
-  "name": "zap-google-back",
+  "name": "whatsapp-api",
   "version": "1.0.0",
   "description": "API WhatsApp com QR Code",
   "main": "index.js",
@@ -7,9 +7,8 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^4.18.2",
     "qrcode": "^1.5.4",
-    "whatsapp-web.js": "^1.25.0",
-    "puppeteer": "^24.4.0"
+    "whatsapp-web.js": "^1.23.0"
   }
 }
