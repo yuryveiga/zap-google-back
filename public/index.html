@@ -263,6 +263,10 @@ let contactCache = {};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function getSafeId(id) {
+  return 'av-' + id.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 function formatTime(ts) {
   if (!ts) return '';
   const d = new Date(ts * 1000), now = new Date();
@@ -325,10 +329,16 @@ async function loadAvatarBatch(chats) {
         const d = await r.json();
         avatarCache[c.id] = d.url || null;
         // Atualiza o elemento na lista se ainda estiver visível
-        const el = document.getElementById('av-' + CSS.escape(c.id));
+        const el = document.getElementById(getSafeId(c.id));
         if (el && d.url) {
-          el.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>` + initials(c.name);
-          el.style.background = avatarColor(c.name);
+          el.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>`;
+        }
+        // Se for o chat ativo, atualiza o cabeçalho também
+        if (activeChat && activeChat.id === c.id) {
+            const headerAv = document.querySelector('#chat-header .avatar');
+            if (headerAv && d.url) {
+                headerAv.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>`;
+            }
         }
       } catch (_) {
         avatarCache[c.id] = null;
@@ -409,7 +419,7 @@ function renderChatList(chats) {
     const url = avatarCache[c.id];
     const img = url ? `<img src="${url}" onerror="this.style.display='none'"/>` : '';
     // Usa id CSS-safe para o avatar
-    const safeId = 'av-' + c.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeId = getSafeId(c.id);
     return `
       <div class="chat-item${activeChat?.id === c.id ? ' active' : ''}" onclick="openChat('${c.id.replace(/'/g,"\\'")}')">
         <div class="avatar" id="${safeId}" style="background:${avatarColor(c.name)}">${img}${url ? '' : initials(c.name)}</div>
@@ -580,6 +590,11 @@ async function openContactPanel(chatId) {
         <label>Tipo</label>
         <span>${chat?.isGroup ? 'Grupo' : 'Contato'}</span>
       </div>
+      ${contact?.about ? `
+      <div class="contact-field">
+        <label>Recado</label>
+        <span>${escapeHtml(contact.about)}</span>
+      </div>` : ''}
     </div>`;
 
   // Atualiza avatar grande se ainda nao carregou

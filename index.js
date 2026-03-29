@@ -167,9 +167,13 @@ app.get('/chats', async (req, res) => {
 
     const result = chats.slice(0, 50).map(c => {
       try {
+        // Fallback para o nome se c.name estiver vazio
+        let name = c.name;
+        if (!name && c.id && c.id.user) name = c.id.user;
+
         return {
           id: c.id._serialized,
-          name: c.name || c.id.user || '',
+          name: name || '',
           isGroup: c.isGroup || false,
           lastMessage: c.lastMessage ? {
             body: c.lastMessage.body || (c.lastMessage.hasMedia ? 'Midia' : ''),
@@ -245,6 +249,7 @@ app.post('/send', async (req, res) => {
 app.get('/avatar/:contactId', async (req, res) => {
   try {
     if (status !== 'connected') return res.json({ url: null });
+    // Alguns contatos podem demorar pra carregar, retornamos nulo em caso de erro sem quebrar
     const url = await client.getProfilePicUrl(req.params.contactId).catch(() => null);
     res.json({ url: url || null });
   } catch (err) {
@@ -256,17 +261,32 @@ app.get('/avatar/:contactId', async (req, res) => {
 app.get('/contact/:contactId', async (req, res) => {
   try {
     if (status !== 'connected') return res.status(503).json({ error: 'Nao conectado' });
-    const contact = await client.getContactById(req.params.contactId);
+    
+    // Tenta pegar o contato (pode falhar se ainda não carregou)
+    const contact = await client.getContactById(req.params.contactId).catch(() => null);
+    
+    if (!contact) {
+      // Se falhou, retorna o básico baseado no ID
+      const number = req.params.contactId.split('@')[0];
+      return res.json({
+        id: req.params.contactId,
+        name: number,
+        number: number,
+        isMe: false,
+      });
+    }
+
     res.json({
       id: contact.id._serialized,
       name: contact.name || contact.pushname || contact.id.user,
-      pushname: contact.pushname,
+      pushname: contact.pushname || '',
       number: contact.id.user,
-      isMe: contact.isMe,
+      isMe: contact.isMe || false,
+      about: await contact.getAbout().catch(() => null),
     });
   } catch (err) {
     console.error('Erro em /contact:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erro ao buscar contato' });
   }
 });
 
