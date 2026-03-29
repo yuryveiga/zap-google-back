@@ -52,6 +52,8 @@
   .qr-container img { width: 100%; height: 100%; }
   .account-status { font-size: 13px; color: var(--text-secondary); text-align: center; }
   .status-ready { color: var(--accent); font-weight: 600; }
+  .action-btn { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight:600; transition: transform 0.2s; }
+  .action-btn:active { transform: scale(0.95); }
   .account-badge {
     font-size: 10px; background: var(--bg-input); padding: 2px 6px; 
     border-radius: 4px; color: var(--text-secondary); font-weight: 600;
@@ -416,26 +418,49 @@ function updateAccountUI({ accountId, status, qr, loadingPercent }) {
   if (status === 'connected') {
     container.innerHTML = '<svg width="80" height="80" viewBox="0 0 24 24" fill="#00a884"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>';
     statusEl.innerHTML = '<span class="status-ready">CONECTADO</span>';
-  } else if (status === 'initializing' || status === 'loading') {
+  } else if (status === 'initializing' || status === 'loading' || status === 'authenticated') {
     container.innerHTML = '<div class="loading-spinner" style="margin:0"></div>';
-    statusEl.textContent = status === 'loading' ? `Carregando (${loadingPercent || 0}%)` : 'Iniciando navegador...';
+    let text = 'Iniciando...';
+    if (status === 'loading') text = `Carregando (${loadingPercent || 0}%)`;
+    if (status === 'authenticated') text = 'Autenticado, abrindo...';
+    statusEl.textContent = text;
   } else if (status === 'pending' && qr) {
     container.innerHTML = `<img src="${qr}"/>`;
     statusEl.textContent = 'Escaneie o QR Code';
   } else {
     // Starting ou Disconnected
-    container.innerHTML = `<button style="background:var(--accent); color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer;" onclick="startAccount('${accountId}')">Conectar</button>`;
-    statusEl.textContent = 'Clique para iniciar';
+    container.innerHTML = `
+        <button class="action-btn" onclick="startAccount('${accountId}')">Conectar</button>
+        <button class="reset-btn" onclick="resetAccount('${accountId}')" style="margin-top:10px; background:transparent; color:#ff4b2b; border:1px solid #ff4b2b; font-size:11px; padding:4px 8px; border-radius:4px; cursor:pointer">Limpar Sessao</button>
+    `;
+    statusEl.textContent = status === 'disconnected' ? 'Desconectado' : 'Clique para iniciar';
   }
 }
 
 async function startAccount(accountId) {
     const statusEl = document.getElementById('status-' + accountId);
+    const oldText = statusEl.textContent;
     statusEl.textContent = 'Solicitando...';
     try {
-        await fetch('/initialize/' + accountId, { method: 'POST' });
+        const r = await fetch('/initialize/' + accountId, { method: 'POST' });
+        if (!r.ok) {
+            const data = await r.json();
+            alert('Erro: ' + (data.error || 'Nao foi possivel iniciar'));
+            statusEl.textContent = oldText;
+        }
     } catch (e) {
-        statusEl.textContent = 'Erro ao iniciar';
+        alert('Erro de conexão com o servidor');
+        statusEl.textContent = 'Erro';
+    }
+}
+
+async function resetAccount(accountId) {
+    if (!confirm('Isso vai apagar os arquivos de sessao desta conta. Continuar?')) return;
+    try {
+        await fetch('/reset/' + accountId, { method: 'POST' });
+        alert('Sessao reiniciada. Tente conectar novamente.');
+    } catch (e) {
+        alert('Erro ao resetar sessao');
     }
 }
 

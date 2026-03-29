@@ -1,17 +1,26 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const path = require('path');
+const fs = require('fs-extra');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
 const PORT = process.env.PORT || 3000;
 
+app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+  console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  next();
+});
 app.use(express.static(path.join(process.cwd(), 'public')));
 
 // ─── Multi-Client Setup ───────────────────────────────────────────────────────
@@ -21,7 +30,7 @@ const clients = {};
 const clientStates = {};
 
 ACCOUNTS.forEach(id => {
-  clientStates[id] = { status: 'starting', qr: null, ready: false };
+  clientStates[id] = { status: 'starting', qr: null, ready: false, loadingPercent: 0 };
 });
 
 ACCOUNTS.forEach(id => {
@@ -56,7 +65,7 @@ function createClient(id) {
   });
 
   client.on('ready', () => {
-    console.log(`[${id}] Cliente pronto e conectado`);
+    console.log(`[${id}] Cliente conectado`);
     clientStates[id].status = 'connected';
     clientStates[id].ready = true;
     clientStates[id].qr = null;
@@ -64,7 +73,7 @@ function createClient(id) {
   });
 
   client.on('authenticated', () => {
-    console.log(`[${id}] Autenticado com sucesso`);
+    console.log(`[${id}] Autenticado`);
     clientStates[id].status = 'authenticated';
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
@@ -128,7 +137,7 @@ function parseId(fullId) {
     return { accountId: parts[0], chatId: parts.slice(1).join(':') };
 }
 
-async function withTimeout(fn, ms = 10000) {
+async function withTimeout(fn, ms = 15000) {
   return Promise.race([
     fn(),
     new Promise((_, reject) =>
@@ -151,7 +160,7 @@ async function withRetry(fn, retries = 3, delay = 2000) {
 // ─── Socket.io ────────────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-  console.log('Cliente conectado via socket');
+  console.log('[Socket] Cliente conectado');
   ACCOUNTS.forEach(id => {
     socket.emit('status_update', { accountId: id, ...clientStates[id] });
   });
@@ -179,21 +188,11 @@ app.get('/status', (req, res) => {
   res.json(clientStates);
 });
 
-// Rota de compatibilidade para visualizar QRs rapidamente no production
 app.get('/get-qr', (req, res) => {
-  let html = `
-    <html>
-      <body style="background:#111b21; color:white; font-family:sans-serif; display:flex; gap:20px; text-align:center; padding:40px">
-  `;
+  let html = `<html><body style="background:#111b21; color:white; font-family:sans-serif; display:flex; gap:20px; text-align:center; padding:40px">`;
   ACCOUNTS.forEach(id => {
     const s = clientStates[id];
-    html += `
-      <div style="background:#202c33; padding:20px; border-radius:12px; min-width:250px">
-        <h3>${id}</h3>
-        <p>Status: <b>${s.status}</b></p>
-        ${s.qr ? `<img src="${s.qr}" style="background:white; padding:10px; border-radius:8px"/>` : '<p>Sem QR pendente</p>'}
-      </div>
-    `;
+    html += `<div style="background:#202c33; padding:20px; border-radius:12px; min-width:250px"><h3>${id}</h3><p>Status: <b>${s.status}</b></p>${s.qr ? `<img src="${s.qr}" style="background:white; padding:10px; border-radius:8px"/>` : '<p>Sem QR pendente</p>'}</div>`;
   });
   html += `</body></html>`;
   res.send(html);
@@ -204,21 +203,51 @@ app.post('/initialize/:accountId', async (req, res) => {
   const client = clients[accountId];
   if (!client) return res.status(404).json({ error: 'Conta nao encontrada' });
   
-  if (clientStates[accountId].status === 'pending' || clientStates[accountId].ready || clientStates[accountId].status === 'initializing' || clientStates[accountId].status === 'loading') {
-    return res.json({ status: clientStates[accountId].status });
+  const s = clientStates[accountId];
+  if (s.status === 'pending' || s.ready || s.status === 'initializing' || s.status === 'loading') {
+    return res.json({ status: s.status });
   }
   
-  console.log(`[${accountId}] Inicializacao manual iniciada`);
+  console.log(`[${accountId}] Inicializacao iniciada`);
   clientStates[accountId].status = 'initializing';
   io.emit('status_update', { accountId, ...clientStates[accountId] });
   
   client.initialize().catch(err => {
-    console.error(`[${accountId}] Erro na inicializacao:`, err.message);
+    console.error(`[${accountId}] Erro:`, err.message);
     clientStates[accountId].status = 'disconnected';
     io.emit('status_update', { accountId, ...clientStates[accountId] });
   });
   
   res.json({ ok: true });
+});
+
+app.post('/reset/:accountId', async (req, res) => {
+  const { accountId } = req.params;
+  console.log(`[${accountId}] Reset de sessao solicitado`);
+  
+  try {
+    // 1. Tenta fechar o cliente se existir
+    if (clients[accountId]) {
+        try { await clients[accountId].destroy(); } catch (_) {}
+    }
+
+    // 2. Apaga pastas de sessao
+    const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
+    if (await fs.pathExists(sessionPath)) {
+        await fs.remove(sessionPath);
+        console.log(`[${accountId}] Pasta de sessao removida`);
+    }
+
+    // 3. Reinicia o objeto do cliente
+    clientStates[accountId] = { status: 'starting', qr: null, ready: false, loadingPercent: 0 };
+    clients[accountId] = createClient(accountId);
+    
+    io.emit('status_update', { accountId, ...clientStates[accountId] });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`[${accountId}] Erro no reset:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/chats', async (req, res) => {
@@ -308,6 +337,6 @@ app.get('/contact/:fullId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Erro ao buscar contato' }); }
 });
 
-server.listen(PORT, () => {
-  console.log('Servidor unificado rodando na porta ' + PORT);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
 });
