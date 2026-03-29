@@ -1,35 +1,41 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const express = require('express');
-const cors = require('cors'); // <--- PARTE 2: Importação
+const cors = require('cors');
 const path = require('path');
 const pino = require('pino');
 
 const app = express();
+app.use(cors());
 const port = process.env.PORT || 3000;
 
-// <--- PARTE 2: Ativação do CORS
-app.use(cors());
-
 let lastQR = null;
+let isConnected = false;
 
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth_info_teste'));
+    // Usando uma pasta limpa para garantir o QR Code
+    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth_info'));
+
     const sock = makeWASocket({
         auth: state,
-        logger: pino({ level: 'silent' }),
+        logger: pino({ level: 'silent' })
     });
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
+
         if (qr) {
-            // Gera a URL do QRServer
+            console.log("Novo QR Code gerado!");
             lastQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+            isConnected = false;
         }
+
         if (connection === 'close') {
+            isConnected = false;
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
-            console.log('Conectado!');
+            console.log('CONECTADO COM SUCESSO!');
+            isConnected = true;
             lastQR = null;
         }
     });
@@ -37,57 +43,48 @@ async function connectToWhatsApp() {
     sock.ev.on('creds.update', saveCreds);
 }
 
-// <--- PARTE 2: Rota para entregar o HTML (Página Principal)
+// ROTA DE STATUS PARA O HTML
+app.get('/get-qr', (req, res) => {
+    if (isConnected) {
+        return res.json({ status: "connected" });
+    }
+    if (lastQR) {
+        return res.json({ status: "pending", qrUrl: lastQR });
+    }
+    res.json({ status: "loading", message: "Iniciando conexão..." });
+});
+
+// PÁGINA PRINCIPAL
 app.get('/', (req, res) => {
     res.send(`
-        <!DOCTYPE html>
         <html>
-        <head>
-            <title>Zap QR Connect</title>
-            <style>
-                body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5; }
-                .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
-                img { margin-top: 20px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <h2>Conectar WhatsApp</h2>
-                <div id="status">Buscando QR Code...</div>
-                <div id="qr"></div>
+        <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#f0f2f5;">
+            <div style="background:white;padding:30px;border-radius:15px;box-shadow:0 4px-15px rgba(0,0,0,0.1);text-align:center;">
+                <h2>Painel WhatsApp - Rio de Janeiro</h2>
+                <div id="display">Carregando...</div>
             </div>
             <script>
-                async function update() {
-                    try {
-                        const r = await fetch('/get-qr');
-                        const d = await r.json();
-                        if(d.status === 'pending') {
-                            document.getElementById('qr').innerHTML = '<img src="' + d.qrUrl + '">';
-                            document.getElementById('status').innerText = 'Aguardando leitura...';
-                        } else {
-                            document.getElementById('qr').innerHTML = '<h1 style="color:green">✅</h1>';
-                            document.getElementById('status').innerText = 'WhatsApp Conectado!';
-                        }
-                    } catch(e) { console.error("Erro na API"); }
+                async function check() {
+                    const r = await fetch('/get-qr');
+                    const d = await r.json();
+                    const div = document.getElementById('display');
+                    if(d.status === 'connected') {
+                        div.innerHTML = '<h1 style="color:green">✅ Conectado!</h1><p>Pronto para enviar mensagens.</p>';
+                    } else if(d.status === 'pending') {
+                        div.innerHTML = '<p>Escaneie agora:</p><img src="' + d.qrUrl + '" style="border:10px solid white;box-shadow:0 0 10px rgba(0,0,0,0.1)">';
+                    } else {
+                        div.innerHTML = '<p>Gerando novo QR Code... aguarde 5 segundos.</p>';
+                    }
                 }
-                setInterval(update, 5000);
-                update();
+                setInterval(check, 5000);
+                check();
             </script>
         </body>
         </html>
     `);
 });
 
-// Rota JSON que o HTML consome
-app.get('/get-qr', (req, res) => {
-    if (lastQR) {
-        res.json({ status: "pending", qrUrl: lastQR });
-    } else {
-        res.json({ status: "connected" });
-    }
-});
-
 app.listen(port, () => {
-    console.log("Servidor rodando na porta " + port);
+    console.log("Servidor Online na porta " + port);
     connectToWhatsApp();
 });
