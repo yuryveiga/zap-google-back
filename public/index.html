@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Connect - Railway</title>
+    <title>WhatsApp Connect - Admin</title>
     <style>
         body {
             font-family: 'Segoe UI', sans-serif;
@@ -22,12 +22,17 @@
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             text-align: center;
-            width: 320px;
+            width: 350px;
         }
 
         h2 {
             color: #075e54;
-            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            color: #666;
+            font-size: 0.9rem;
         }
 
         #qr-container {
@@ -37,7 +42,7 @@
             justify-content: center;
             border: 2px dashed #ddd;
             border-radius: 8px;
-            margin: 1rem 0;
+            margin: 1.5rem 0;
             background: #fafafa;
         }
 
@@ -45,14 +50,16 @@
             width: 100%;
             height: auto;
             border-radius: 4px;
+            transition: opacity 0.3s;
         }
 
         .status {
             font-weight: bold;
             padding: 8px 12px;
             border-radius: 20px;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             display: inline-block;
+            text-transform: uppercase;
         }
 
         .pending {
@@ -69,61 +76,49 @@
             background: #e2e3e5;
             color: #383d41;
         }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
     </style>
 </head>
 
 <body>
 
     <div class="card">
-        <h2>WhatsApp Login</h2>
-        <div id="status-badge" class="status loading">Status: Inicializando...</div>
+        <h2>WhatsApp Link</h2>
+        <p>Escaneie para conectar o bot</p>
+
+        <div id="status-badge" class="status loading">Iniciando...</div>
 
         <div id="qr-container">
-            <p id="message">Aguardando servidor...</p>
+            <div id="loader">Aguardando servidor...</div>
         </div>
 
-        <p style="font-size: 0.8rem; color: #666;">A página atualiza sozinha a cada 5s.</p>
+        <p style="font-size: 0.75rem;">A atualização é automática a cada 5 segundos.</p>
     </div>
 
     <script>
-        // Usando URL relativa para funcionar em qualquer domínio do Railway
+        // IMPORTANTE: Usar caminho relativo "/" faz com que o HTML 
+        // converse com o Railway não importa qual seja a URL.
         const API_URL = "/get-qr";
 
         const qrContainer = document.getElementById('qr-container');
         const statusBadge = document.getElementById('status-badge');
-        const message = document.getElementById('message');
 
         async function checkStatus() {
             try {
                 const response = await fetch(API_URL);
+                if (!response.ok) throw new Error("Erro na rede");
                 const data = await response.json();
 
                 if (data.status === "loading") {
-                    message.innerText = "O WhatsApp está iniciando...";
-                    statusBadge.innerText = "Status: Carregando";
+                    qrContainer.innerHTML = "<span>Gerando sessão...</span>";
+                    statusBadge.innerText = "Aguardando WhatsApp";
                     statusBadge.className = "status loading";
                 }
                 else if (data.status === "pending" && data.qrUrl) {
-                    qrContainer.innerHTML = `<img src="${data.qrUrl}" alt="Scan Me">`;
-                    statusBadge.innerText = "Status: Escaneie o QR Code";
-                    statusBadge.className = "status pending";
-                }
-                else if (data.status === "connected") {
-                    qrContainer.innerHTML = "<h1 style='color: #25D366;'>✅</h1><p>Conectado!</p>";
-                    statusBadge.innerText = "Status: Online";
-                    statusBadge.className = "status connected";
-                    clearInterval(pollInterval); // Para de perguntar ao servidor
-                }
-            } catch (error) {
-                console.error("Erro:", error);
-                message.innerText = "Erro ao conectar com o servidor.";
-            }
-        }
-
-        const pollInterval = setInterval(checkStatus, 5000);
-        checkStatus();
-    </script>
-
-</body>
-
-</html>
+                    // Só atualiza a imagem se ela mudar ou não existir
+                    const currentImg = qrContainer.querySelector('img');
+                    if (!currentImg || currentImg.src !== data.

@@ -45,6 +45,8 @@ async function connectToWhatsApp() {
     sock.ev.on('creds.update', saveCreds);
 }
 
+// ... resto do seu código acima ...
+
 // Rota que o seu HTML vai consultar internamente
 app.get('/get-qr', (req, res) => {
     if (isConnected) return res.json({ status: "connected" });
@@ -55,6 +57,6 @@ app.get('/get-qr', (req, res) => {
 // Inicialização do Servidor
 app.listen(port, () => {
     console.log(`Servidor rodando na porta ${port}`);
-    // Chama a função para iniciar o WhatsApp
-    connectToWhatsApp();
+    // ESTA LINHA ABAIXO É A QUE TIRA DO LOADING
+    connectToWhatsApp().catch(err => console.error("Erro na conexão:", err));
 });
