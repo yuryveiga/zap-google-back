@@ -1,131 +1,83 @@
 const express = require('express');
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const QRCode = require('qrcode');
+const qrcode = require('qrcode');
 
-const app = express();
-app.use(express.json());
+const app = express(); // ✅ TEM QUE VIR ANTES
+const PORT = process.env.PORT || 3000;
 
 let qrCodeBase64 = null;
-let clientReady = false;
+let status = 'starting';
 
-// Cliente WhatsApp
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu'
+    ],
   }
 });
 
-// Evento QR
 client.on('qr', async (qr) => {
-  console.log('📱 QR RECEBIDO');
-
-  qrCodeBase64 = await QRCode.toDataURL(qr);
+  console.log('QR gerado');
+  qrCodeBase64 = await qrcode.toDataURL(qr);
+  status = 'pending';
 });
 
-// Evento pronto
 client.on('ready', () => {
-  console.log('✅ WhatsApp conectado');
-  clientReady = true;
+  console.log('WhatsApp conectado');
+  status = 'connected';
+  qrCodeBase64 = null;
 });
 
-// Evento desconectado
 client.on('disconnected', () => {
-  console.log('❌ WhatsApp desconectado');
-  clientReady = false;
+  console.log('WhatsApp desconectado');
+  status = 'disconnected';
 });
 
-// Inicializa
 client.initialize();
 
 
-// =============================
-// ROTAS
-// =============================
+// ✅ ROTAS (AGORA SIM depois do app)
 
-// Home
 app.get('/', (req, res) => {
   res.send('🚀 API WhatsApp rodando');
 });
 
-
-// Status + QR (JSON)
-app.get('/qr', (req, res) => {
-  if (clientReady) {
-    return res.json({ status: 'ready' });
-  }
-
-  if (!qrCodeBase64) {
-    return res.json({ status: 'loading' });
-  }
-
+app.get('/get-qr', (req, res) => {
   res.json({
-    status: 'pending',
+    status,
     qr: qrCodeBase64
   });
 });
 
-
-// QR como imagem (abre no navegador)
-app.get('/qr-image', (req, res) => {
+app.get('/qr', (req, res) => {
   if (!qrCodeBase64) {
-    return res.send('QR ainda não gerado');
+    return res.send('<h2>QR ainda não gerado...</h2>');
   }
 
-  const img = Buffer.from(
-    qrCodeBase64.replace(/^data:image\/png;base64,/, ''),
-    'base64'
-  );
+  res.setHeader('Content-Type', 'text/html');
 
-  res.writeHead(200, {
-    'Content-Type': 'image/png',
-    'Content-Length': img.length
-  });
-
-  res.end(img);
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>QR WhatsApp</title>
+        <meta charset="UTF-8" />
+        <meta http-equiv="refresh" content="5">
+      </head>
+      <body style="text-align:center;font-family:Arial;">
+        <h2>Escaneie o QR Code</h2>
+        <img src="${qrCodeBase64}" style="width:300px;height:300px;" />
+        <p>Status: ${status}</p>
+      </body>
+    </html>
+  `);
 });
-
-
-// ENVIO DE MENSAGEM
-app.post('/send', async (req, res) => {
-  const { number, message } = req.body;
-
-  if (!clientReady) {
-    return res.status(400).json({
-      error: 'WhatsApp não conectado'
-    });
-  }
-
-  if (!number || !message) {
-    return res.status(400).json({
-      error: 'Número e mensagem são obrigatórios'
-    });
-  }
-
-  try {
-    const chatId = number + '@c.us';
-
-    await client.sendMessage(chatId, message);
-
-    res.json({
-      status: 'enviado',
-      number,
-      message
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: error.message
-    });
-  }
-});
-
-
-// PORTA (Railway usa PORT automático)
-const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
