@@ -1,7 +1,9 @@
 {
   "ignore": [
-    ".wwebjs_auth/*",
-    "auth_info/*",
-    "public/*"
-  ]
+    ".wwebjs_auth/**",
+    "auth_info/**",
+    ".wweb_cache_/**",
+    "public/**"
+  ],
+  "ext": "js,json,html,css"
 }
