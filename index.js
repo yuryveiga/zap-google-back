@@ -23,18 +23,23 @@ async function connectToWhatsApp() {
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
 
+        // LOG DE DEBUG PARA VOCÊ VER NO RAILWAY
+        console.log('Update de Conexão:', connection || 'Aguardando QR...');
+
         if (qr) {
-            console.log("Novo QR Code gerado!");
+            console.log(">>> QR CODE RECEBIDO DO WHATSAPP! <<<");
             lastQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
             isConnected = false;
         }
 
         if (connection === 'close') {
+            const code = lastDisconnect.error?.output?.statusCode;
+            console.log('Conexão fechada. Código:', code);
             isConnected = false;
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) connectToWhatsApp();
+            // Se não for logoff voluntário, tenta reconectar
+            if (code !== DisconnectReason.loggedOut) connectToWhatsApp();
         } else if (connection === 'open') {
-            console.log('CONECTADO COM SUCESSO!');
+            console.log('SESSÃO ATIVA E PRONTA!');
             isConnected = true;
             lastQR = null;
         }
