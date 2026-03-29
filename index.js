@@ -52,7 +52,12 @@ app.get('/get-qr', (req, res) => {
     res.json({ status: "loading" });
 });
 
+// Inicialização do Servidor
 app.listen(port, () => {
-    console.log(`Backend rodando na porta ${port}`);
-    connectToWhatsApp();
+    console.log(`Node rodando na porta ${port}`);
+
+    // IMPORTANTE: Chama a conexão do WhatsApp assim que o servidor sobe
+    connectToWhatsApp().catch(err => {
+        console.error("Erro fatal ao iniciar WhatsApp:", err);
+    });
 });
