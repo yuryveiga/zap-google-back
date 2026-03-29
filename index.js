@@ -12,18 +12,16 @@ let lastQR = null;
 let status = 'loading';
 
 const client = new Client({
-    authStrategy: new LocalAuth({ dataPath: 'auth_info' }), // Pasta de sessão
+    authStrategy: new LocalAuth({ dataPath: 'auth_info' }),
     puppeteer: {
+        executablePath: '/usr/bin/google-chrome', // Caminho padrão do Chromium no Nixpacks
         headless: true,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
             '--single-process',
-            '--disable-gpu'
+            '--no-zygote'
         ],
     }
 });
