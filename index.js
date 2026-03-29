@@ -30,13 +30,14 @@ const client = new Client({
   }
 });
 
-// ─── Helper: retry com delay ──────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Substitua a função withRetry por essa versão com timeout:
 async function withTimeout(fn, ms = 10000) {
   return Promise.race([
     fn(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout após ${ms}ms`)), ms))
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout apos ' + ms + 'ms')), ms)
+    )
   ]);
 }
 
@@ -45,14 +46,12 @@ async function withRetry(fn, retries = 3, delay = 2000) {
     try {
       return await withTimeout(fn);
     } catch (err) {
-      console.error(`Tentativa ${i + 1}/${retries} falhou: ${err.message}`);
+      console.error('Tentativa ' + (i + 1) + '/' + retries + ' falhou: ' + err.message);
       if (i < retries - 1) await new Promise(r => setTimeout(r, delay));
       else throw err;
     }
   }
 }
-
-// ─── Helper: aguarda cliente estar pronto ─────────────────────────────────────
 
 async function waitReady(timeoutMs = 15000) {
   if (clientReady) return;
@@ -96,7 +95,7 @@ client.on('auth_failure', (msg) => {
 });
 
 client.on('loading_screen', (percent, message) => {
-  console.log(`Carregando: ${percent}% - ${message}`);
+  console.log('Carregando: ' + percent + '% - ' + message);
 });
 
 client.on('message', (msg) => {
