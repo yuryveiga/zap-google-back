@@ -7,19 +7,23 @@ const port = process.env.PORT || 3000;
 
 // Estado global
 let qrBase64 = null;
-let status = "loading";
+let status = "starting";
 
 // Cliente WhatsApp
 const client = new Client({
-    authStrategy: new LocalAuth({ dataPath: 'auth_info' }),
+    authStrategy: new LocalAuth({
+        dataPath: './auth_info'
+    }),
     puppeteer: {
         headless: true,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--single-process',
-            '--no-zygote'
+            '--disable-gpu',
+            '--disable-software-rasterizer',
+            '--no-zygote',
+            '--single-process'
         ],
     }
 });
@@ -28,36 +32,47 @@ const client = new Client({
 client.on('qr', async (qr) => {
     console.log('📲 QR Code gerado');
 
-    qrBase64 = await QRCode.toDataURL(qr);
-    status = "pending";
+    try {
+        qrBase64 = await QRCode.toDataURL(qr);
+        status = "pending";
+    } catch (err) {
+        console.error('Erro ao gerar QR:', err);
+    }
 });
 
-// Evento pronto
+// Cliente pronto
 client.on('ready', () => {
     console.log('✅ WhatsApp conectado!');
     status = "connected";
+    qrBase64 = null;
 });
 
-// Evento erro
+// Falha de autenticação
 client.on('auth_failure', msg => {
     console.error('❌ Falha na autenticação:', msg);
     status = "error";
 });
 
-// Endpoint para frontend
+// Desconectado
+client.on('disconnected', reason => {
+    console.log('⚠️ Desconectado:', reason);
+    status = "disconnected";
+});
+
+// Endpoint QR
 app.get('/get-qr', (req, res) => {
     res.json({
         status,
-        qrUrl: qrBase64
+        qr: qrBase64
     });
 });
 
 // Healthcheck
 app.get('/', (req, res) => {
-    res.send('🚀 WhatsApp API rodando');
+    res.send('🚀 API WhatsApp rodando');
 });
 
-// Inicializa cliente
+// Inicializa
 client.initialize();
 
 // Start server

@@ -9,7 +9,7 @@
 <body style="text-align:center; font-family:Arial;">
 
     <h2>Conectar WhatsApp</h2>
-    <div id="status">Carregando...</div>
+    <p id="status">Carregando...</p>
     <div id="qr"></div>
 
     <script>
@@ -20,9 +20,9 @@
 
                 document.getElementById('status').innerText = data.status;
 
-                if (data.qrUrl) {
+                if (data.qr) {
                     document.getElementById('qr').innerHTML =
-                        `<img src="${data.qrUrl}" width="300"/>`;
+                        `<img src="${data.qr}" width="300"/>`;
                 }
 
                 if (data.status !== 'connected') {
@@ -31,6 +31,7 @@
 
             } catch (err) {
                 console.error(err);
+                setTimeout(atualizar, 5000);
             }
         }
 
