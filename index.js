@@ -14,8 +14,9 @@ let status = 'loading';
 const client = new Client({
     authStrategy: new LocalAuth({ dataPath: 'auth_info' }),
     puppeteer: {
-        executablePath: '/usr/bin/google-chrome', // Caminho padrão do Chromium no Nixpacks
         headless: true,
+        // O Railway/Nixpacks geralmente instala nestes locais:
+        executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable' || '/usr/bin/google-chrome' || '/usr/bin/chromium-browser',
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
