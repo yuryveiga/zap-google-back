@@ -1,62 +1,55 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
 const express = require('express');
-const pino = require('pino');
 const path = require('path');
-const cors = require('cors');
 
 const app = express();
-app.use(cors());
+const port = process.env.PORT || 3000;
 
-// Esta linha faz o Express servir o index.html que estiver na pasta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
-const port = process.env.PORT || 3000;
 let lastQR = null;
-let isConnected = false;
+let status = 'loading';
 
-async function connectToWhatsApp() {
-    // Persistência na pasta auth_info (configure o Volume no Railway para este caminho)
-    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth_info'));
-
-    const sock = makeWASocket({
-        auth: state,
-        logger: pino({ level: 'silent' })
-    });
-
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-
-        if (qr) {
-            lastQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
-            isConnected = false;
-        }
-
-        if (connection === 'close') {
-            isConnected = false;
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) connectToWhatsApp();
-        } else if (connection === 'open') {
-            console.log('Conexão aberta com sucesso!');
-            isConnected = true;
-            lastQR = null;
-        }
-    });
-
-    sock.ev.on('creds.update', saveCreds);
-}
-
-// ... resto do seu código acima ...
-
-// Rota que o seu HTML vai consultar internamente
-app.get('/get-qr', (req, res) => {
-    if (isConnected) return res.json({ status: "connected" });
-    if (lastQR) return res.json({ status: "pending", qrUrl: lastQR });
-    res.json({ status: "loading" });
+const client = new Client({
+    authStrategy: new LocalAuth({ dataPath: 'auth_info' }), // Pasta de sessão
+    puppeteer: {
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu'
+        ],
+    }
 });
 
-// Inicialização do Servidor
-app.listen(port, () => {
+client.on('qr', (qr) => {
+    console.log('QR RECEIVED', qr);
+    lastQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+    status = 'pending';
+});
+
+client.on('ready', () => {
+    console.log('Client is ready!');
+    status = 'connected';
+    lastQR = null;
+});
+
+client.on('authenticated', () => {
+    console.log('Authenticated');
+});
+
+client.initialize();
+
+app.get('/get-qr', (req, res) => {
+    res.json({ status: status, qrUrl: lastQR });
+});
+
+app.listen(port, '0.0.0.0', () => {
     console.log(`Servidor rodando na porta ${port}`);
-    // ESTA LINHA ABAIXO É A QUE TIRA DO LOADING
-    connectToWhatsApp().catch(err => console.error("Erro na conexão:", err));
 });
