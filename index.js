@@ -11,7 +11,7 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static(process.cwd()));
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 let qrCodeBase64 = null;
 let status = 'starting';
@@ -111,7 +111,7 @@ io.on('connection', (socket) => {
 // ─── Rotas REST ──────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'index.html'));
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
 });
 
 app.get('/get-qr', (req, res) => {
