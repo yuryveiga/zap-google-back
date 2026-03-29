@@ -1,22 +1,36 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
 const express = require('express');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, 'public')));
+// 1. FUNÇÃO DE BUSCA (Coloque aqui)
+const getChromePath = () => {
+    const paths = [
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/app/.apt/usr/bin/google-chrome'
+    ];
+    for (const path of paths) {
+        if (fs.existsSync(path)) {
+            console.log(`✅ Chrome encontrado em: ${path}`);
+            return path;
+        }
+    }
+    console.error("❌ Nenhum binário do Chrome encontrado!");
+    return null;
+};
 
-let lastQR = null;
-let status = 'loading';
-
+// 2. CONFIGURAÇÃO DO CLIENTE (Substitua o seu antigo por este)
 const client = new Client({
     authStrategy: new LocalAuth({ dataPath: 'auth_info' }),
     puppeteer: {
         headless: true,
-        // O Railway/Nixpacks geralmente instala nestes locais:
-        executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable' || '/usr/bin/google-chrome' || '/usr/bin/chromium-browser',
+        executablePath: getChromePath(), // Chama a função acima
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -27,28 +41,4 @@ const client = new Client({
     }
 });
 
-client.on('qr', (qr) => {
-    console.log('QR RECEIVED', qr);
-    lastQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
-    status = 'pending';
-});
-
-client.on('ready', () => {
-    console.log('Client is ready!');
-    status = 'connected';
-    lastQR = null;
-});
-
-client.on('authenticated', () => {
-    console.log('Authenticated');
-});
-
-client.initialize();
-
-app.get('/get-qr', (req, res) => {
-    res.json({ status: status, qrUrl: lastQR });
-});
-
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Servidor rodando na porta ${port}`);
-});
+// ... resto do seu código (client.on('qr'), app.get, etc)

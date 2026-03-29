@@ -1,8 +1,10 @@
 [phases.setup]
-nixPkgs = ["nodejs", "google-chrome", "cacert"]
+nixPkgs = ["nodejs", "google-chrome"]
 
 [phases.build]
 cmds = ["npm install"]
 
+# Isso ajuda o Puppeteer a encontrar o Chrome instalado pelo Nix
 [variables]
-CHROME_PATH = "/usr/bin/google-chrome-stable"
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+PUPPETEER_EXECUTABLE_PATH = "/usr/bin/google-chrome-stable"
