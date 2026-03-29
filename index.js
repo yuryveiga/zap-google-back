@@ -140,6 +140,8 @@ app.get('/chats', async (req, res) => {
     }));
     res.json(result);
   } catch (err) {
+    console.error('❌ Erro em /chats:', err.message);
+    console.error(err.stack);
     res.status(500).json({ error: err.message });
   }
 });
