@@ -203,6 +203,12 @@
     animation: spin .7s linear infinite; margin: 40px auto; display: block;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .close-chat-btn {
+    background: none; border: none; color: var(--text-secondary); cursor: pointer;
+    font-size: 18px; padding: 4px 8px; border-radius: 4px; transition: all var(--transition);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .close-chat-btn:hover { color: var(--text-primary); background: var(--border); }
 </style>
 </head>
 <body>
@@ -470,13 +476,20 @@ async function openChat(chatId) {
   // Insere header
   const header = document.createElement('div');
   header.id = 'chat-header';
-  header.onclick = () => openContactPanel(chatId);
   header.innerHTML = `
-    ${renderAvatar(activeChat.name, url)}
-    <div id="header-info">
-      <div id="header-name">${escapeHtml(activeChat.name || chatId)}</div>
-      <div id="header-status">clique para ver informacoes</div>
-    </div>`;
+    <div style="display:flex; align-items:center; gap:12px; flex:1" onclick="openContactPanel('${chatId.replace(/'/g,"\\'")}')">
+        ${renderAvatar(activeChat.name, url)}
+        <div id="header-info">
+          <div id="header-name">${escapeHtml(activeChat.name || chatId)}</div>
+          <div id="header-status">clique para ver informacoes</div>
+        </div>
+    </div>
+    <button class="close-chat-btn" onclick="closeChat()" title="Sair da conversa">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+    </button>`;
   area.insertBefore(header, document.getElementById('contact-panel'));
 
   // Insere area de mensagens
@@ -636,6 +649,34 @@ async function sendMessage() {
     });
   } catch (e) { console.error(e); }
   finally { btn.disabled = false; input.focus(); }
+}
+
+function closeChat() {
+  activeChat = null;
+  document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
+  
+  const area = document.getElementById('chat-area');
+  
+  // Remove header/messages/input
+  ['chat-header','messages-area','input-area'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+  
+  closeContactPanel();
+  
+  // Restaura welcome screen
+  if (!document.getElementById('welcome-screen')) {
+    const welcome = document.createElement('div');
+    welcome.id = 'welcome-screen';
+    welcome.innerHTML = `
+      <svg width="180" height="180" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#00a884"/>
+      </svg>
+      <h3>WhatsApp Web</h3>
+      <p>Selecione uma conversa para começar</p>`;
+    area.insertBefore(welcome, document.getElementById('contact-panel'));
+  }
 }
 
 function handleKey(e) {
