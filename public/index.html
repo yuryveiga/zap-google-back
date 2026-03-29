@@ -1,70 +1,129 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WhatsApp Connect - Railway</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #f0f2f5; margin: 0; }
-        .card { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
-        h2 { color: #075e54; margin-bottom: 1rem; }
-        #qr-container { min-height: 300px; display: flex; align-items: center; justify-content: center; border: 1px dashed #ccc; border-radius: 8px; margin-bottom: 1rem; }
-        img { max-width: 100%; border-radius: 4px; }
-        .status { font-weight: bold; padding: 8px 16px; border-radius: 20px; font-size: 0.9rem; }
-        .pending { background: #fff3cd; color: #856404; }
-        .connected { background: #d4edda; color: #155724; }
-        .loading { color: #666; font-style: italic; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f2f5;
+            margin: 0;
+        }
+
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 320px;
+        }
+
+        h2 {
+            color: #075e54;
+            margin-top: 0;
+        }
+
+        #qr-container {
+            min-height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            margin: 1rem 0;
+            background: #fafafa;
+        }
+
+        img {
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+
+        .status {
+            font-weight: bold;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            display: inline-block;
+        }
+
+        .pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .loading {
+            background: #e2e3e5;
+            color: #383d41;
+        }
     </style>
 </head>
+
 <body>
 
-<div class="card">
-    <h2>Conectar WhatsApp</h2>
-    <p>Escaneie o código abaixo para iniciar a sessão:</p>
-    
-    <div id="qr-container">
-        <p class="loading" id="message">Buscando QR Code...</p>
+    <div class="card">
+        <h2>WhatsApp Login</h2>
+        <div id="status-badge" class="status loading">Status: Inicializando...</div>
+
+        <div id="qr-container">
+            <p id="message">Aguardando servidor...</p>
+        </div>
+
+        <p style="font-size: 0.8rem; color: #666;">A página atualiza sozinha a cada 5s.</p>
     </div>
 
-    <div id="status-badge" class="status pending">Status: Verificando...</div>
-</div>
+    <script>
+        // Usando URL relativa para funcionar em qualquer domínio do Railway
+        const API_URL = "/get-qr";
 
-<script>
-    // ALTERE PARA A SUA URL DO RAILWAY
-    const API_URL = "https://zap-google-back-production.up.railway.app/get-qr";
-    
-    const qrContainer = document.getElementById('qr-container');
-    const statusBadge = document.getElementById('status-badge');
-    const message = document.getElementById('message');
+        const qrContainer = document.getElementById('qr-container');
+        const statusBadge = document.getElementById('status-badge');
+        const message = document.getElementById('message');
 
-    async function checkStatus() {
-        try {
-            const response = await fetch(API_URL);
-            const data = await response.json();
+        async function checkStatus() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
 
-            if (data.status === "pending" && data.qrUrl) {
-                qrContainer.innerHTML = `<img src="${data.qrUrl}" alt="WhatsApp QR Code">`;
-                statusBadge.innerText = "Status: Aguardando Escaneamento";
-                statusBadge.className = "status pending";
-            } 
-            else if (data.status === "connected") {
-                qrContainer.innerHTML = "✅<br>Conectado com Sucesso!";
-                qrContainer.style.fontSize = "3rem";
-                statusBadge.innerText = "Status: Online";
-                statusBadge.className = "status connected";
-                // Para de atualizar quando conecta
-                clearInterval(pollInterval);
+                if (data.status === "loading") {
+                    message.innerText = "O WhatsApp está iniciando...";
+                    statusBadge.innerText = "Status: Carregando";
+                    statusBadge.className = "status loading";
+                }
+                else if (data.status === "pending" && data.qrUrl) {
+                    qrContainer.innerHTML = `<img src="${data.qrUrl}" alt="Scan Me">`;
+                    statusBadge.innerText = "Status: Escaneie o QR Code";
+                    statusBadge.className = "status pending";
+                }
+                else if (data.status === "connected") {
+                    qrContainer.innerHTML = "<h1 style='color: #25D366;'>✅</h1><p>Conectado!</p>";
+                    statusBadge.innerText = "Status: Online";
+                    statusBadge.className = "status connected";
+                    clearInterval(pollInterval); // Para de perguntar ao servidor
+                }
+            } catch (error) {
+                console.error("Erro:", error);
+                message.innerText = "Erro ao conectar com o servidor.";
             }
-        } catch (error) {
-            console.error("Erro ao buscar API:", error);
-            message.innerText = "Erro ao conectar com o Backend.";
         }
-    }
 
-    // Verifica o status a cada 5 segundos
-    const pollInterval = setInterval(checkStatus, 5000);
-    checkStatus(); // Executa a primeira vez imediatamente
-</script>
+        const pollInterval = setInterval(checkStatus, 5000);
+        checkStatus();
+    </script>
 
 </body>
+
 </html>
