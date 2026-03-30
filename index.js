@@ -1,21 +1,66 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode');
+const path = require('path');
+const fs = require('fs-extra');
+
+const app = express(); // <--- O 'app' é definido aqui
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(process.cwd(), 'public')));
+
+// Configuração das contas (Exemplo com 2 contas)
+const ACCOUNTS = ['CONTA_01', 'CONTA_02'];
+const clients = {};
+const clientStates = {};
+
+ACCOUNTS.forEach(id => {
+  clientStates[id] = { status: 'disconnected', qr: null, ready: false };
+  clients[id] = new Client({
+    authStrategy: new LocalAuth({ clientId: id }),
+    puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+  });
+
+  clients[id].on('qr', async (qr) => {
+    const url = await qrcode.toDataURL(qr);
+    clientStates[id].qr = url;
+    clientStates[id].status = 'qr';
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
+
+  clients[id].on('ready', () => {
+    clientStates[id].ready = true;
+    clientStates[id].status = 'connected';
+    clientStates[id].qr = null;
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+  });
+});
+
+// --- ROTA DE CHATS CORRIGIDA ---
 app.get('/chats', async (req, res) => {
   try {
     let allChats = [];
     for (const id of ACCOUNTS) {
       if (clientStates[id].ready) {
-        // Tenta buscar os chats
         let chats = await clients[id].getChats();
 
-        // Se a lista vier vazia, pode ser que o cache ainda esteja carregando
-        // Tentamos um pequeno "retry" de 1 segundo se for a primeira carga
+        // Retry simples se o cache estiver carregando
         if (chats.length === 0) {
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 1500));
           chats = await clients[id].getChats();
         }
 
         const mapped = chats
-          .filter(c => !c.isGroup && !c.isReadOnly) // Filtra para mostrar apenas conversas úteis
-          .slice(0, 40) // Limita para não travar o navegador
+          .filter(c => !c.isGroup)
+          .slice(0, 40)
           .map(c => ({
             id: `${id}:${c.id._serialized}`,
             name: c.name || c.id.user,
@@ -25,11 +70,16 @@ app.get('/chats', async (req, res) => {
         allChats = allChats.concat(mapped);
       }
     }
-    // Ordena por data (mais recentes primeiro)
     allChats.sort((a, b) => b.timestamp - a.timestamp);
     res.json(allChats);
   } catch (err) {
-    console.error("Erro ao listar chats:", err);
     res.status(500).json({ error: 'Erro ao buscar conversas' });
   }
+});
+
+app.get('/status', (req, res) => res.json(clientStates));
+
+server.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+  ACCOUNTS.forEach(id => clients[id].initialize());
 });
