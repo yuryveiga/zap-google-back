@@ -7,7 +7,6 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs-extra');
-const os = require('os');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,29 +15,24 @@ const io = new Server(server, {
 });
 const PORT = process.env.PORT || 3000;
 
-// --- Sistema de Logs com Monitoramento de RAM ---
+// Captura logs em memória para debug remoto
 const serverLogs = [];
-const logToMemory = (level, ...args) => {
-  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
-  const logEntry = {
-    t: new Date().toISOString(),
-    level,
-    msg,
-    freeMem: `${(os.freemem() / 1024 / 1024).toFixed(0)}MB`
-  };
-  serverLogs.push(logEntry);
-  if (serverLogs.length > 200) serverLogs.shift();
-  level === 'error' ? console.error(`[ERR] ${msg}`) : console.log(`[INFO] ${msg}`);
-};
-
-console.log = (...a) => logToMemory('info', ...a);
-console.error = (...a) => logToMemory('error', ...a);
+const _log = console.log.bind(console);
+const _err = console.error.bind(console);
+console.log = (...a) => { serverLogs.push({ t: new Date().toISOString(), level: 'info', msg: a.join(' ') }); if (serverLogs.length > 200) serverLogs.shift(); _log(...a); };
+console.error = (...a) => { serverLogs.push({ t: new Date().toISOString(), level: 'error', msg: a.join(' ') }); if (serverLogs.length > 200) serverLogs.shift(); _err(...a); };
 
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+  console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  next();
+});
 app.use(express.static(path.join(process.cwd(), 'public')));
 
-// --- Configuração de Sessões ---
+// ─── Multi-Client Setup ───────────────────────────────────────────────────────
+
+// Carrega contas salvas ou inicia com as padrões
 const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
 let ACCOUNTS = ['acc1', 'acc2'];
 let accountNames = { 'acc1': 'WhatsApp 1', 'acc2': 'WhatsApp 2' };
@@ -64,7 +58,6 @@ ACCOUNTS.forEach(id => {
   clientStates[id] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: accountNames[id] || id };
 });
 
-// --- Fábrica de Clientes com Otimização de Recursos ---
 function createClient(id) {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: id }),
@@ -74,49 +67,55 @@ function createClient(id) {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
         '--no-first-run',
         '--no-zygote',
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-default-apps',
-        '--mute-audio',
-        '--js-flags="--max-old-space-size=512"' // Limita heap de cada aba do Chromium
+        '--single-process'
       ]
     }
   });
 
   client.on('qr', async (qr) => {
+    console.log(`[${id}] QR Code recebido`);
     const base64 = await qrcode.toDataURL(qr);
-    clientStates[id] = { ...clientStates[id], qr: base64, status: 'pending', ready: false };
+    clientStates[id].qr = base64;
+    clientStates[id].status = 'pending';
+    clientStates[id].ready = false;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
   client.on('ready', () => {
-    clientStates[id] = { ...clientStates[id], status: 'connected', ready: true, qr: null };
-    console.log(`[${id}] Cliente pronto.`);
+    console.log(`[${id}] Cliente conectado`);
+    clientStates[id].status = 'connected';
+    clientStates[id].ready = true;
+    clientStates[id].qr = null;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
   client.on('authenticated', () => {
+    console.log(`[${id}] Autenticado`);
     clientStates[id].status = 'authenticated';
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
   client.on('auth_failure', (msg) => {
-    console.error(`[${id}] Falha na autenticação: ${msg}`);
+    console.error(`[${id}] Falha na autenticação:`, msg);
     clientStates[id].status = 'disconnected';
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
   client.on('loading_screen', (percent, message) => {
-    clientStates[id] = { ...clientStates[id], status: 'loading', loadingPercent: percent };
+    console.log(`[${id}] Carregando: ${percent}% - ${message}`);
+    clientStates[id].status = 'loading';
+    clientStates[id].loadingPercent = percent;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
   client.on('disconnected', (reason) => {
-    console.log(`[${id}] Desconectado: ${reason}`);
-    clientStates[id] = { ...clientStates[id], status: 'disconnected', ready: false, qr: null };
+    console.log(`[${id}] Desconectado:`, reason);
+    clientStates[id].status = 'disconnected';
+    clientStates[id].ready = false;
+    clientStates[id].qr = null;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
@@ -150,7 +149,13 @@ function createClient(id) {
   return client;
 }
 
-// --- Helpers de Rede e Tempo ---
+// Inicializa clientes existentes
+ACCOUNTS.forEach(id => {
+  clients[id] = createClient(id);
+});
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function parseId(fullId) {
   const parts = fullId.split(':');
   if (parts.length < 2) return { accountId: ACCOUNTS[0], chatId: fullId };
@@ -160,22 +165,27 @@ function parseId(fullId) {
 async function withTimeout(fn, ms = 15000) {
   return Promise.race([
     fn(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout após ' + ms + 'ms')), ms))
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout apos ' + ms + 'ms')), ms)
+    )
   ]);
 }
 
 async function withRetry(fn, retries = 3, delay = 2000) {
   for (let i = 0; i < retries; i++) {
-    try { return await withTimeout(fn); }
-    catch (err) {
+    try {
+      return await withTimeout(fn);
+    } catch (err) {
       if (i < retries - 1) await new Promise(r => setTimeout(r, delay));
       else throw err;
     }
   }
 }
 
-// --- Socket.io ---
+// ─── Socket.io ────────────────────────────────────────────────────────────────
+
 io.on('connection', (socket) => {
+  console.log('[Socket] Cliente conectado');
   ACCOUNTS.forEach(id => {
     socket.emit('status_update', { accountId: id, ...clientStates[id] });
   });
@@ -187,94 +197,182 @@ io.on('connection', (socket) => {
       if (client && clientStates[accountId].ready) {
         await client.sendMessage(chatId, body);
       }
-    } catch (err) { socket.emit('error', { message: err.message }); }
+    } catch (err) {
+      socket.emit('error', { message: err.message });
+    }
   });
 });
 
-// --- Rotas da API ---
-app.get('/status', (req, res) => res.json(clientStates));
-app.get('/logs', (req, res) => res.json(serverLogs));
-app.get('/system-health', (req, res) => {
-  res.json({
-    freeMem: `${(os.freemem() / 1024 / 1024).toFixed(2)} MB`,
-    uptime: `${(os.uptime() / 3600).toFixed(2)}h`,
-    clients: Object.keys(clients).length
-  });
+// ─── Rotas REST ───────────────────────────────────────────────────────────────
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+});
+
+app.get('/status', (req, res) => {
+  res.json(clientStates);
+});
+
+app.get('/logs', (req, res) => {
+  res.json(serverLogs);
 });
 
 app.post('/add-account', async (req, res) => {
   const { name, accountId } = req.body;
-  if (!name || !accountId || clients[accountId]) return res.status(400).json({ error: 'ID inválido ou já existe' });
+  if (!name || !accountId) return res.status(400).json({ error: 'Nome e ID são obrigatórios' });
 
+  if (clients[accountId]) {
+    return res.status(400).json({ error: 'Esta conexão já existe' });
+  }
+
+  console.log(`[${accountId}] Adicionando nova conta: ${name}`);
   accountNames[accountId] = name;
   if (!ACCOUNTS.includes(accountId)) ACCOUNTS.push(accountId);
   saveSessions();
 
   clientStates[accountId] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: name };
   clients[accountId] = createClient(accountId);
-  clients[accountId].initialize().catch(e => console.error(`[${accountId}] Erro: ${e.message}`));
+
+  io.emit('status_update', { accountId, ...clientStates[accountId] });
+
+  clients[accountId].initialize().catch(err => {
+    console.error(`[${accountId}] Erro na inicialização:`, err.message);
+    clientStates[accountId].status = 'disconnected';
+    io.emit('status_update', { accountId, ...clientStates[accountId] });
+  });
 
   res.json({ ok: true });
 });
 
 app.post('/reset/:accountId', async (req, res) => {
   const { accountId } = req.params;
-  try {
-    if (clients[accountId]) await clients[accountId].destroy().catch(() => { });
-    const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
-    if (await fs.pathExists(sessionPath)) await fs.remove(sessionPath);
+  console.log(`[${accountId}] Reset de sessao solicitado`);
 
-    clientStates[accountId] = { ...clientStates[accountId], status: 'starting', qr: null, ready: false };
+  try {
+    if (clients[accountId]) {
+      try { await clients[accountId].destroy(); } catch (_) { }
+    }
+
+    const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
+    if (await fs.pathExists(sessionPath)) {
+      await fs.remove(sessionPath);
+      console.log(`[${accountId}] Pasta de sessao removida`);
+    }
+
+    clientStates[accountId] = { ...clientStates[accountId], status: 'starting', qr: null, ready: false, loadingPercent: 0 };
     clients[accountId] = createClient(accountId);
-    clients[accountId].initialize();
+
+    io.emit('status_update', { accountId, ...clientStates[accountId] });
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error(`[${accountId}] Erro no reset:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/chats', async (req, res) => {
   try {
     const allResults = [];
     for (const id of ACCOUNTS) {
-      if (!clientStates[id]?.ready) continue;
+      if (!clientStates[id] || !clientStates[id].ready) continue;
       try {
         const chats = await withRetry(() => clients[id].getChats());
-        allResults.push(...chats.slice(0, 40).map(c => ({
-          id: `${id}:${c.id._serialized}`,
-          name: c.name || c.id.user || '',
-          isGroup: c.isGroup,
-          unreadCount: c.unreadCount,
-          accountId: id,
-          lastMessage: c.lastMessage ? { body: c.lastMessage.body, timestamp: c.lastMessage.timestamp } : null
-        })));
-      } catch (e) { console.error(`Erro chats ${id}: ${e.message}`); }
+        const mapped = chats.slice(0, 40).map(c => {
+          let name = c.name;
+          if (!name && c.id && c.id.user) name = c.id.user;
+          return {
+            id: `${id}:${c.id._serialized}`,
+            name: name || '',
+            isGroup: c.isGroup || false,
+            lastMessage: c.lastMessage ? {
+              body: c.lastMessage.body || (c.lastMessage.hasMedia ? 'Midia' : ''),
+              timestamp: c.lastMessage.timestamp || null,
+              fromMe: c.lastMessage.fromMe || false,
+            } : null,
+            unreadCount: c.unreadCount || 0,
+            accountId: id,
+          };
+        });
+        allResults.push(...mapped);
+      } catch (e) { console.error(`Erro em /chats (${id}):`, e.message); }
     }
-    res.json(allResults.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0)));
+    allResults.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
+    res.json(allResults);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/messages/:fullId', async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
+    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
+    const limit = parseInt(req.query.limit) || 50;
     const chat = await withRetry(() => clients[accountId].getChatById(chatId));
-    const msgs = await withRetry(() => chat.fetchMessages({ limit: 50 }));
-    res.json(msgs.map(m => ({ id: m.id._serialized, body: m.body, fromMe: m.fromMe, timestamp: m.timestamp })));
+    const msgs = await withRetry(() => chat.fetchMessages({ limit }));
+    try { await chat.sendSeen(); } catch (_) { }
+    res.json(msgs.map(m => ({
+      id: m.id._serialized,
+      body: m.body || (m.hasMedia ? 'Midia' : ''),
+      fromMe: m.fromMe,
+      timestamp: m.timestamp,
+      type: m.type,
+      hasMedia: m.hasMedia,
+      ack: m.ack,
+    })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- Inicialização Sequencial ---
-async function startSequentially() {
-  console.log(`Iniciando ${ACCOUNTS.length} contas...`);
-  for (const id of ACCOUNTS) {
-    if (clientStates[id].status !== 'connected') {
-      clients[id] = createClient(id);
-      clients[id].initialize().catch(e => console.error(`[${id}] Falha: ${e.message}`));
-      // Intervalo de 10s para não saturar a CPU no boot do Chromium
-      await new Promise(r => setTimeout(r, 10000));
-    }
-  }
-}
+app.post('/send', async (req, res) => {
+  try {
+    const { to, body } = req.body;
+    const { accountId, chatId } = parseId(to);
+    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
+    const msg = await clients[accountId].sendMessage(chatId, body);
+    res.json({ ok: true, id: msg.id._serialized });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/avatar/:fullId', async (req, res) => {
+  try {
+    const { accountId, chatId } = parseId(req.params.fullId);
+    if (!clientStates[accountId].ready) return res.json({ url: null });
+    const url = await clients[accountId].getProfilePicUrl(chatId).catch(() => null);
+    res.json({ url: url || null });
+  } catch (err) { res.json({ url: null }); }
+});
+
+app.get('/contact/:fullId', async (req, res) => {
+  try {
+    const { accountId, chatId } = parseId(req.params.fullId);
+    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
+    const contact = await clients[accountId].getContactById(chatId).catch(() => null);
+    if (!contact) return res.json({ id: req.params.fullId, name: chatId.split('@')[0] });
+    res.json({
+      id: `${accountId}:${contact.id._serialized}`,
+      name: contact.name || contact.pushname || contact.id.user,
+      pushname: contact.pushname || '',
+      number: contact.id.user,
+      isMe: contact.isMe || false,
+      about: await contact.getAbout().catch(() => null),
+    });
+  } catch (err) { res.status(500).json({ error: 'Erro ao buscar contato' }); }
+});
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-  startSequentially();
+  // Auto-inicializa cada conta com intervalo de 8s entre elas
+  ACCOUNTS.forEach((id, index) => {
+    setTimeout(() => {
+      const s = clientStates[id];
+      if (s && s.status !== 'connected' && s.status !== 'initializing' && s.status !== 'loading') {
+        console.log(`[${id}] Auto-inicializando...`);
+        clientStates[id].status = 'initializing';
+        io.emit('status_update', { accountId: id, ...clientStates[id] });
+        clients[id].initialize().catch(err => {
+          console.error(`[${id}] Erro:`, err.message);
+          clientStates[id].status = 'disconnected';
+          io.emit('status_update', { accountId: id, ...clientStates[id] });
+        });
+      }
+    }, index * 8000);
+  });
+  console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
 });
