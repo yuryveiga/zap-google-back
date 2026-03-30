@@ -14,6 +14,10 @@
       color: #fff;
     }
 
+    .hidden {
+      display: none;
+    }
+
     .container {
       display: flex;
       height: 100vh;
@@ -23,12 +27,6 @@
       flex: 1;
       border-right: 1px solid #222;
       overflow: auto;
-    }
-
-    .col h2 {
-      padding: 10px;
-      background: #222;
-      margin: 0;
     }
 
     .chat {
@@ -43,7 +41,6 @@
 
     #chatArea {
       width: 40%;
-      background: #0b141a;
       display: flex;
       flex-direction: column;
     }
@@ -52,10 +49,6 @@
       flex: 1;
       overflow: auto;
       padding: 10px;
-    }
-
-    .msg {
-      margin: 5px 0;
     }
 
     .me {
@@ -73,48 +66,77 @@
 
 <body>
 
-  <div class="container">
+  <!-- LOGIN -->
+  <div id="login">
+    <h2>Login</h2>
+    <input id="user" placeholder="usuario"><br>
+    <input id="pass" placeholder="senha" type="password"><br>
+    <button onclick="login()">Entrar</button>
+  </div>
 
-    <div class="col" id="newCol">
-      <h2>Novos</h2>
+  <!-- APP -->
+  <div id="app" class="hidden">
+    <div class="container">
+
+      <div class="col" id="newCol"></div>
+      <div class="col" id="assignedCol"></div>
+
+      <div id="chatArea">
+        <div id="messages"></div>
+        <input id="input" placeholder="Digite..." />
+      </div>
+
     </div>
-
-    <div class="col" id="assignedCol">
-      <h2>Em atendimento</h2>
-    </div>
-
-    <div id="chatArea">
-      <div id="messages"></div>
-      <input id="input" placeholder="Digite..." />
-    </div>
-
   </div>
 
   <script>
     const socket = io();
 
+    let token = null;
+    let user = null;
     let crmData = [];
     let activeChat = null;
 
-    // ─── LOAD ─────────────────────────────
+    // LOGIN
+    async function login() {
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: userInput.value,
+          password: pass.value
+        })
+      });
+
+      const data = await res.json();
+
+      token = data.token;
+      user = data.user;
+
+      document.getElementById('login').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+
+      loadCRM();
+    }
+
+    // LOAD
     async function loadCRM() {
-      const res = await fetch('/crm');
+      const res = await fetch('/crm', {
+        headers: { Authorization: token }
+      });
       crmData = await res.json();
       render();
     }
 
-    // ─── RENDER ───────────────────────────
+    // RENDER
     function render() {
-      const newCol = document.getElementById('newCol');
-      const assignedCol = document.getElementById('assignedCol');
-
       newCol.innerHTML = '<h2>Novos</h2>';
       assignedCol.innerHTML = '<h2>Em atendimento</h2>';
 
       crmData.forEach(chat => {
         const el = document.createElement('div');
         el.className = 'chat';
-        el.innerText = chat.name;
+        el.innerText = chat.name + (chat.assignedTo ? ` (${chat.assignedTo})` : '');
 
         el.onclick = () => openChat(chat);
 
@@ -123,14 +145,17 @@
       });
     }
 
-    // ─── OPEN CHAT ────────────────────────
-    function openChat(chat) {
+    // OPEN
+    async function openChat(chat) {
       activeChat = chat;
 
       if (chat.status === 'new') {
-        fetch('/crm/assign', {
+        await fetch('/crm/assign', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token
+          },
           body: JSON.stringify({ chatId: chat.id })
         });
       }
@@ -138,44 +163,40 @@
       renderMessages();
     }
 
-    // ─── RENDER MESSAGES ──────────────────
+    // MESSAGES
     function renderMessages() {
-      const box = document.getElementById('messages');
-      box.innerHTML = '';
-
-      if (!activeChat) return;
+      messages.innerHTML = '';
 
       activeChat.messages.forEach(m => {
         const div = document.createElement('div');
-        div.className = 'msg ' + (m.fromMe ? 'me' : '');
+        div.className = m.fromMe ? 'me' : '';
         div.innerText = m.body;
-        box.appendChild(div);
+        messages.appendChild(div);
       });
-
-      box.scrollTop = box.scrollHeight;
     }
 
-    // ─── SEND ─────────────────────────────
-    document.getElementById('input').addEventListener('keydown', async (e) => {
+    // SEND
+    input.addEventListener('keydown', async (e) => {
       if (e.key === 'Enter') {
-        const text = e.target.value;
-        e.target.value = '';
-
         await fetch('/send', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token
+          },
           body: JSON.stringify({
             to: activeChat.id,
-            body: text
+            body: input.value
           })
         });
+
+        input.value = '';
       }
     });
 
-    // ─── SOCKET ───────────────────────────
+    // SOCKET
     socket.on('crm_update', (chat) => {
       const i = crmData.findIndex(c => c.id === chat.id);
-
       if (i >= 0) crmData[i] = chat;
       else crmData.push(chat);
 
@@ -186,9 +207,6 @@
         renderMessages();
       }
     });
-
-    // ─── INIT ─────────────────────────────
-    loadCRM();
   </script>
 
 </body>
