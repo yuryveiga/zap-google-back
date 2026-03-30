@@ -28,8 +28,11 @@ const logToMemory = (level, ...args) => {
   };
   serverLogs.push(logEntry);
   if (serverLogs.length > 200) serverLogs.shift();
-  level === 'error' ? console.error(`[ERR] ${msg}`) : console.log(`[INFO] ${msg}`);
+  level === 'error' ? originalError(`[ERR] ${msg}`) : originalLog(`[INFO] ${msg}`);
 };
+
+const originalLog = console.log;
+const originalError = console.error;
 
 console.log = (...a) => logToMemory('info', ...a);
 console.error = (...a) => logToMemory('error', ...a);
