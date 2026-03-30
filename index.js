@@ -16,9 +16,12 @@ const io = new Server(server, {
 });
 const PORT = process.env.PORT || 3000;
 
-// --- Sistema de Logs com Monitoramento de RAM ---
+// --- Simple logging to memory ---
 const serverLogs = [];
-const logToMemory = (level, ...args) => {
+const originalLog = console.log;
+const originalError = console.error;
+
+function logToMemory(level, ...args) {
   const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
   const logEntry = {
     t: new Date().toISOString(),
@@ -28,11 +31,17 @@ const logToMemory = (level, ...args) => {
   };
   serverLogs.push(logEntry);
   if (serverLogs.length > 200) serverLogs.shift();
-  level === 'error' ? console.error(`[ERR] ${msg}`) : console.log(`[INFO] ${msg}`);
-};
+}
 
-console.log = (...a) => logToMemory('info', ...a);
-console.error = (...a) => logToMemory('error', ...a);
+// Override console to log to memory without recursion
+console.log = (...a) => {
+  logToMemory('info', ...a);
+  originalLog(...a);
+};
+console.error = (...a) => {
+  logToMemory('error', ...a);
+  originalError(...a);
+};
 
 app.use(cors());
 app.use(express.json());
