@@ -32,16 +32,30 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 
 // ─── Multi-Client Setup ───────────────────────────────────────────────────────
 
-const ACCOUNTS = ['acc1', 'acc2'];
+// Carrega contas salvas ou inicia com as padrões
+const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
+let ACCOUNTS = ['acc1', 'acc2'];
+let accountNames = { 'acc1': 'WhatsApp 1', 'acc2': 'WhatsApp 2' };
+
+if (fs.existsSync(SESSIONS_FILE)) {
+  try {
+    const data = fs.readJsonSync(SESSIONS_FILE);
+    ACCOUNTS = data.accounts || ACCOUNTS;
+    accountNames = data.names || accountNames;
+  } catch (e) { console.error('Erro ao carregar sessões:', e.message); }
+}
+
+function saveSessions() {
+  try {
+    fs.writeJsonSync(SESSIONS_FILE, { accounts: ACCOUNTS, names: accountNames });
+  } catch (e) { console.error('Erro ao salvar sessões:', e.message); }
+}
+
 const clients = {};
 const clientStates = {};
 
 ACCOUNTS.forEach(id => {
-  clientStates[id] = { status: 'starting', qr: null, ready: false, loadingPercent: 0 };
-});
-
-ACCOUNTS.forEach(id => {
-  clients[id] = createClient(id);
+  clientStates[id] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: accountNames[id] || id };
 });
 
 function createClient(id) {
@@ -58,7 +72,6 @@ function createClient(id) {
         '--no-zygote',
         '--single-process'
       ]
-
     }
   });
 
@@ -136,6 +149,11 @@ function createClient(id) {
   return client;
 }
 
+// Inicializa clientes existentes
+ACCOUNTS.forEach(id => {
+  clients[id] = createClient(id);
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseId(fullId) {
@@ -199,42 +217,26 @@ app.get('/logs', (req, res) => {
   res.json(serverLogs);
 });
 
-app.get('/chrome-path', (req, res) => {
-  const { execSync } = require('child_process');
-  try {
-    const result = execSync('find /nix /run /usr -name "chromium*" -type f 2>/dev/null | head -5').toString().trim();
-    res.json({ result: result || 'nao encontrado' });
-  } catch (e) {
-    res.json({ error: e.message });
-  }
-});
+app.post('/add-account', async (req, res) => {
+  const { name, accountId } = req.body;
+  if (!name || !accountId) return res.status(400).json({ error: 'Nome e ID são obrigatórios' });
 
-app.get('/get-qr', (req, res) => {
-  let html = `<html><body style="background:#111b21; color:white; font-family:sans-serif; display:flex; gap:20px; text-align:center; padding:40px">`;
-  ACCOUNTS.forEach(id => {
-    const s = clientStates[id];
-    html += `<div style="background:#202c33; padding:20px; border-radius:12px; min-width:250px"><h3>${id}</h3><p>Status: <b>${s.status}</b></p>${s.qr ? `<img src="${s.qr}" style="background:white; padding:10px; border-radius:8px"/>` : '<p>Sem QR pendente</p>'}</div>`;
-  });
-  html += `</body></html>`;
-  res.send(html);
-});
-
-app.post('/initialize/:accountId', async (req, res) => {
-  const { accountId } = req.params;
-  const client = clients[accountId];
-  if (!client) return res.status(404).json({ error: 'Conta nao encontrada' });
-
-  const s = clientStates[accountId];
-  if (s.status === 'pending' || s.ready || s.status === 'initializing' || s.status === 'loading') {
-    return res.json({ status: s.status });
+  if (clients[accountId]) {
+    return res.status(400).json({ error: 'Esta conexão já existe' });
   }
 
-  console.log(`[${accountId}] Inicializacao iniciada`);
-  clientStates[accountId].status = 'initializing';
+  console.log(`[${accountId}] Adicionando nova conta: ${name}`);
+  accountNames[accountId] = name;
+  if (!ACCOUNTS.includes(accountId)) ACCOUNTS.push(accountId);
+  saveSessions();
+
+  clientStates[accountId] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: name };
+  clients[accountId] = createClient(accountId);
+
   io.emit('status_update', { accountId, ...clientStates[accountId] });
 
-  client.initialize().catch(err => {
-    console.error(`[${accountId}] Erro:`, err.message);
+  clients[accountId].initialize().catch(err => {
+    console.error(`[${accountId}] Erro na inicialização:`, err.message);
     clientStates[accountId].status = 'disconnected';
     io.emit('status_update', { accountId, ...clientStates[accountId] });
   });
@@ -247,20 +249,17 @@ app.post('/reset/:accountId', async (req, res) => {
   console.log(`[${accountId}] Reset de sessao solicitado`);
 
   try {
-    // 1. Tenta fechar o cliente se existir
     if (clients[accountId]) {
       try { await clients[accountId].destroy(); } catch (_) { }
     }
 
-    // 2. Apaga pastas de sessao
     const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
     if (await fs.pathExists(sessionPath)) {
       await fs.remove(sessionPath);
       console.log(`[${accountId}] Pasta de sessao removida`);
     }
 
-    // 3. Reinicia o objeto do cliente
-    clientStates[accountId] = { status: 'starting', qr: null, ready: false, loadingPercent: 0 };
+    clientStates[accountId] = { ...clientStates[accountId], status: 'starting', qr: null, ready: false, loadingPercent: 0 };
     clients[accountId] = createClient(accountId);
 
     io.emit('status_update', { accountId, ...clientStates[accountId] });
@@ -275,7 +274,7 @@ app.get('/chats', async (req, res) => {
   try {
     const allResults = [];
     for (const id of ACCOUNTS) {
-      if (!clientStates[id].ready) continue;
+      if (!clientStates[id] || !clientStates[id].ready) continue;
       try {
         const chats = await withRetry(() => clients[id].getChats());
         const mapped = chats.slice(0, 40).map(c => {
@@ -359,12 +358,11 @@ app.get('/contact/:fullId', async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-
   // Auto-inicializa cada conta com intervalo de 8s entre elas
   ACCOUNTS.forEach((id, index) => {
     setTimeout(() => {
       const s = clientStates[id];
-      if (s.status !== 'connected' && s.status !== 'initializing' && s.status !== 'loading') {
+      if (s && s.status !== 'connected' && s.status !== 'initializing' && s.status !== 'loading') {
         console.log(`[${id}] Auto-inicializando...`);
         clientStates[id].status = 'initializing';
         io.emit('status_update', { accountId: id, ...clientStates[id] });
