@@ -1197,28 +1197,29 @@
     }
 
     // ── Modal ─────────────────────────────────────────────────────────────────────
-    function openAddModal() { document.getElementById('modal-add').classList.add('active'); document.getElementById('new-acc-name').focus(); }
+    let _pendingSlotId = null;
+    function openAddModal(slotId) {
+      _pendingSlotId = slotId;
+      document.getElementById('modal-add').classList.add('active');
+      setTimeout(() => document.getElementById('new-acc-name').focus(), 50);
+    }
     function closeAddModal() { document.getElementById('modal-add').classList.remove('active'); document.getElementById('new-acc-name').value = ''; }
 
     async function confirmAddAccount() {
       const name = document.getElementById('new-acc-name').value.trim();
-      if (!name) return alert('Por favor, insira um nome.');
-
-      const accountId = 'acc' + (Object.keys(accountStates).length + 1);
-
+      if (!name) return alert('Por favor, insira um nome para identificar a conta.');
+      const accountId = _pendingSlotId;
+      // Salva o nome localmente e inicializa
+      if (accountStates[accountId]) {
+        accountStates[accountId].name = name;
+      } else {
+        accountStates[accountId] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name };
+      }
+      closeAddModal();
+      updateConnGrid();
       try {
-        const r = await fetch('/add-account', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, accountId })
-        });
-        const d = await r.json();
-        if (d.ok) {
-          closeAddModal();
-        } else {
-          alert(d.error || 'Erro ao adicionar conta');
-        }
-      } catch (e) { alert('Erro de conexão'); }
+        await fetch('/initialize/' + accountId, { method: 'POST' });
+      } catch (e) { alert('Erro ao inicializar conta'); }
     }
 
     // ── Socket ────────────────────────────────────────────────────────────────────
@@ -1258,12 +1259,32 @@
     }
 
     // ── Conexão grid ──────────────────────────────────────────────────────────────
+    const SLOTS = ['acc1', 'acc2'];
+
     function updateConnGrid() {
       const grid = document.getElementById('conn-grid');
-      grid.innerHTML = Object.entries(accountStates).map(([id, s]) => {
+      grid.innerHTML = SLOTS.map(id => {
+        const s = accountStates[id];
+
+        // Slot vazio
+        if (!s || (s.status === 'starting' && !s.name)) {
+          return `
+            <div class="conn-card" style="align-items:center;justify-content:center;min-height:260px;border:2px dashed var(--border);background:transparent">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:20px;text-align:center">
+                <div style="width:64px;height:64px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:30px">&#128247;</div>
+                <div>
+                  <p style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Slot ${id.replace('acc', '')}</p>
+                  <p style="font-size:13px;color:var(--text-secondary)">Nenhuma conta conectada</p>
+                </div>
+                <button class="btn-add" onclick="openAddModal('${id}')" style="margin:0">+ Adicionar WhatsApp</button>
+              </div>
+            </div>`;
+        }
+
+        // Slot com conta
         const labels = {
           starting: 'Iniciando...', initializing: 'Inicializando...', authenticated: 'Autenticando...',
-          loading: `Carregando ${s.loadingPercent || 0}%`, pending: 'Aguardando leitura do QR',
+          loading: `Carregando ${s.loadingPercent || 0}%`, pending: 'Escaneie o QR Code',
           connected: 'Conectado', disconnected: 'Desconectado'
         };
         const label = labels[s.status] || s.status;
@@ -1273,24 +1294,24 @@
           ? `<div class="conn-qr-box"><img src="${s.qr}"/></div>`
           : s.status === 'connected'
             ? `<div class="conn-qr-placeholder" style="color:var(--accent);font-size:36px">&#10003;<br/><span style="font-size:13px">Conectado</span></div>`
-            : `<div class="conn-qr-placeholder"><span class="status-dot"></span>${label}</div>`;
+            : `<div class="conn-qr-placeholder">${isLoading ? '<span class="status-dot"></span>' : ''}${label}</div>`;
 
         return `
-      <div class="conn-card">
-        <div class="conn-card-header">
-          <div style="width:12px;height:12px;border-radius:50%;background:${accColor(id)}"></div>
-          <h3>${esc(s.name || id)}</h3>
-          <span class="conn-status-badge ${s.status}">${label}</span>
-        </div>
-        <div class="conn-qr-area">
-          ${qrHtml}
-          <div class="conn-info">
+          <div class="conn-card">
+            <div class="conn-card-header">
+              <div style="width:12px;height:12px;border-radius:50%;background:${accColor(id)}"></div>
+              <h3>${esc(s.name || id)}</h3>
+              <span class="conn-status-badge ${s.status}">${label}</span>
+            </div>
             ${isLoading ? `<div class="conn-loading-bar"><div class="conn-loading-fill" style="width:${s.loadingPercent || 15}%"></div></div>` : ''}
-            <p>${s.status === 'pending' ? 'Escaneie o QR Code no seu WhatsApp para conectar.' : 'Sua conta está pronta para uso.'}</p>
-            <button class="btn-danger" onclick="resetAccount('${id}')">Resetar Sessão</button>
-          </div>
-        </div>
-      </div>`;
+            <div class="conn-qr-area">
+              ${qrHtml}
+              <div class="conn-info">
+                <p>${s.status === 'pending' ? 'Abra o WhatsApp → Dispositivos conectados → Conectar dispositivo → escaneie o QR.' : s.status === 'connected' ? 'Conta conectada com sucesso.' : label}</p>
+              </div>
+            </div>
+            <button class="btn-danger" onclick="resetAccount('${id}')">&#x21BA; Resetar sessao</button>
+          </div>`;
       }).join('');
     }
 
