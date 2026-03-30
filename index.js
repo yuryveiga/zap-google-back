@@ -139,9 +139,9 @@ function createClient(id) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseId(fullId) {
-    const parts = fullId.split(':');
-    if (parts.length < 2) return { accountId: ACCOUNTS[0], chatId: fullId };
-    return { accountId: parts[0], chatId: parts.slice(1).join(':') };
+  const parts = fullId.split(':');
+  if (parts.length < 2) return { accountId: ACCOUNTS[0], chatId: fullId };
+  return { accountId: parts[0], chatId: parts.slice(1).join(':') };
 }
 
 async function withTimeout(fn, ms = 15000) {
@@ -199,6 +199,16 @@ app.get('/logs', (req, res) => {
   res.json(serverLogs);
 });
 
+app.get('/chrome-path', (req, res) => {
+  const { execSync } = require('child_process');
+  try {
+    const path = execSync('which chromium || which chromium-browser || which google-chrome || find /nix -name chromium 2>/dev/null | head -1').toString().trim();
+    res.json({ path });
+  } catch (e) {
+    res.json({ error: e.message });
+  }
+});
+
 app.get('/get-qr', (req, res) => {
   let html = `<html><body style="background:#111b21; color:white; font-family:sans-serif; display:flex; gap:20px; text-align:center; padding:40px">`;
   ACCOUNTS.forEach(id => {
@@ -213,46 +223,46 @@ app.post('/initialize/:accountId', async (req, res) => {
   const { accountId } = req.params;
   const client = clients[accountId];
   if (!client) return res.status(404).json({ error: 'Conta nao encontrada' });
-  
+
   const s = clientStates[accountId];
   if (s.status === 'pending' || s.ready || s.status === 'initializing' || s.status === 'loading') {
     return res.json({ status: s.status });
   }
-  
+
   console.log(`[${accountId}] Inicializacao iniciada`);
   clientStates[accountId].status = 'initializing';
   io.emit('status_update', { accountId, ...clientStates[accountId] });
-  
+
   client.initialize().catch(err => {
     console.error(`[${accountId}] Erro:`, err.message);
     clientStates[accountId].status = 'disconnected';
     io.emit('status_update', { accountId, ...clientStates[accountId] });
   });
-  
+
   res.json({ ok: true });
 });
 
 app.post('/reset/:accountId', async (req, res) => {
   const { accountId } = req.params;
   console.log(`[${accountId}] Reset de sessao solicitado`);
-  
+
   try {
     // 1. Tenta fechar o cliente se existir
     if (clients[accountId]) {
-        try { await clients[accountId].destroy(); } catch (_) {}
+      try { await clients[accountId].destroy(); } catch (_) { }
     }
 
     // 2. Apaga pastas de sessao
     const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
     if (await fs.pathExists(sessionPath)) {
-        await fs.remove(sessionPath);
-        console.log(`[${accountId}] Pasta de sessao removida`);
+      await fs.remove(sessionPath);
+      console.log(`[${accountId}] Pasta de sessao removida`);
     }
 
     // 3. Reinicia o objeto do cliente
     clientStates[accountId] = { status: 'starting', qr: null, ready: false, loadingPercent: 0 };
     clients[accountId] = createClient(accountId);
-    
+
     io.emit('status_update', { accountId, ...clientStates[accountId] });
     res.json({ ok: true });
   } catch (err) {
