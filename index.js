@@ -6,373 +6,119 @@ const { Server } = require('socket.io');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const path = require('path');
-const fs = require('fs-extra');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
-const PORT = process.env.PORT || 3000;
-
-// Captura logs em memória para debug remoto
-const serverLogs = [];
-const _log = console.log.bind(console);
-const _err = console.error.bind(console);
-console.log = (...a) => { serverLogs.push({ t: new Date().toISOString(), level: 'info', msg: a.join(' ') }); if (serverLogs.length > 200) serverLogs.shift(); _log(...a); };
-console.error = (...a) => { serverLogs.push({ t: new Date().toISOString(), level: 'error', msg: a.join(' ') }); if (serverLogs.length > 200) serverLogs.shift(); _err(...a); };
+const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(cors());
 app.use(express.json());
-app.use((req, res, next) => {
-  console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
-  next();
-});
-app.use(express.static(path.join(process.cwd(), 'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── Multi-Client Setup ───────────────────────────────────────────────────────
+const PORT = process.env.PORT || 3000;
 
-// Carrega contas salvas ou inicia com as padrões
-const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
-let ACCOUNTS = ['acc1', 'acc2'];
-let accountNames = { 'acc1': 'WhatsApp 1', 'acc2': 'WhatsApp 2' };
-
-if (fs.existsSync(SESSIONS_FILE)) {
-  try {
-    const data = fs.readJsonSync(SESSIONS_FILE);
-    ACCOUNTS = data.accounts || ACCOUNTS;
-    accountNames = data.names || accountNames;
-  } catch (e) { console.error('Erro ao carregar sessões:', e.message); }
-}
-
-function saveSessions() {
-  try {
-    fs.writeJsonSync(SESSIONS_FILE, { accounts: ACCOUNTS, names: accountNames });
-  } catch (e) { console.error('Erro ao salvar sessões:', e.message); }
-}
+const ACCOUNTS = ['acc1', 'acc2'];
 
 const clients = {};
 const clientStates = {};
 
-ACCOUNTS.forEach(id => {
-  clientStates[id] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: accountNames[id] || id };
-});
-
+// ─── Criar cliente ─────────────────────────────────────
 function createClient(id) {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: id }),
     puppeteer: {
       headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process'
-      ]
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
   });
 
+  clientStates[id] = {
+    status: 'starting',
+    qr: null,
+    ready: false,
+    name: id
+  };
+
   client.on('qr', async (qr) => {
-    console.log(`[${id}] QR Code recebido`);
     const base64 = await qrcode.toDataURL(qr);
     clientStates[id].qr = base64;
     clientStates[id].status = 'pending';
-    clientStates[id].ready = false;
+
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
   client.on('ready', () => {
-    console.log(`[${id}] Cliente conectado`);
     clientStates[id].status = 'connected';
     clientStates[id].ready = true;
     clientStates[id].qr = null;
+
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
-  client.on('authenticated', () => {
-    console.log(`[${id}] Autenticado`);
-    clientStates[id].status = 'authenticated';
-    io.emit('status_update', { accountId: id, ...clientStates[id] });
-  });
-
-  client.on('auth_failure', (msg) => {
-    console.error(`[${id}] Falha na autenticação:`, msg);
-    clientStates[id].status = 'disconnected';
-    io.emit('status_update', { accountId: id, ...clientStates[id] });
-  });
-
-  client.on('loading_screen', (percent, message) => {
-    console.log(`[${id}] Carregando: ${percent}% - ${message}`);
-    clientStates[id].status = 'loading';
-    clientStates[id].loadingPercent = percent;
-    io.emit('status_update', { accountId: id, ...clientStates[id] });
-  });
-
-  client.on('disconnected', (reason) => {
-    console.log(`[${id}] Desconectado:`, reason);
+  client.on('disconnected', () => {
     clientStates[id].status = 'disconnected';
     clientStates[id].ready = false;
-    clientStates[id].qr = null;
+
     io.emit('status_update', { accountId: id, ...clientStates[id] });
-  });
-
-  client.on('message', (msg) => {
-    io.emit('new_message', {
-      accountId: id,
-      id: msg.id._serialized,
-      chatId: msg.from,
-      body: msg.body || (msg.hasMedia ? 'Midia' : ''),
-      fromMe: false,
-      timestamp: msg.timestamp,
-      type: msg.type,
-      hasMedia: msg.hasMedia,
-    });
-  });
-
-  client.on('message_create', (msg) => {
-    if (msg.fromMe) {
-      io.emit('new_message', {
-        accountId: id,
-        id: msg.id._serialized,
-        chatId: msg.to,
-        body: msg.body || '',
-        fromMe: true,
-        timestamp: msg.timestamp,
-        type: msg.type,
-      });
-    }
   });
 
   return client;
 }
 
-// Inicializa clientes existentes
+// ─── Inicializar clientes ──────────────────────────────
 ACCOUNTS.forEach(id => {
   clients[id] = createClient(id);
 });
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function parseId(fullId) {
-  const parts = fullId.split(':');
-  if (parts.length < 2) return { accountId: ACCOUNTS[0], chatId: fullId };
-  return { accountId: parts[0], chatId: parts.slice(1).join(':') };
-}
-
-async function withTimeout(fn, ms = 15000) {
-  return Promise.race([
-    fn(),
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout apos ' + ms + 'ms')), ms)
-    )
-  ]);
-}
-
-async function withRetry(fn, retries = 3, delay = 2000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await withTimeout(fn);
-    } catch (err) {
-      if (i < retries - 1) await new Promise(r => setTimeout(r, delay));
-      else throw err;
-    }
-  }
-}
-
-// ─── Socket.io ────────────────────────────────────────────────────────────────
-
-io.on('connection', (socket) => {
-  console.log('[Socket] Cliente conectado');
-  ACCOUNTS.forEach(id => {
-    socket.emit('status_update', { accountId: id, ...clientStates[id] });
-  });
-
-  socket.on('send_message', async ({ fullId, body }) => {
-    try {
-      const { accountId, chatId } = parseId(fullId);
-      const client = clients[accountId];
-      if (client && clientStates[accountId].ready) {
-        await client.sendMessage(chatId, body);
-      }
-    } catch (err) {
-      socket.emit('error', { message: err.message });
-    }
-  });
-});
-
-// ─── Rotas REST ───────────────────────────────────────────────────────────────
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
-});
-
-app.get('/status', (req, res) => {
-  res.json(clientStates);
-});
-
-app.get('/logs', (req, res) => {
-  res.json(serverLogs);
-});
-
-app.post('/add-account', async (req, res) => {
-  const { name, accountId } = req.body;
-  if (!name || !accountId) return res.status(400).json({ error: 'Nome e ID são obrigatórios' });
-
-  if (clients[accountId]) {
-    return res.status(400).json({ error: 'Esta conexão já existe' });
-  }
-
-  console.log(`[${accountId}] Adicionando nova conta: ${name}`);
-  accountNames[accountId] = name;
-  if (!ACCOUNTS.includes(accountId)) ACCOUNTS.push(accountId);
-  saveSessions();
-
-  clientStates[accountId] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: name };
-  clients[accountId] = createClient(accountId);
-
-  io.emit('status_update', { accountId, ...clientStates[accountId] });
-
-  clients[accountId].initialize().catch(err => {
-    console.error(`[${accountId}] Erro na inicialização:`, err.message);
-    clientStates[accountId].status = 'disconnected';
-    io.emit('status_update', { accountId, ...clientStates[accountId] });
-  });
-
-  res.json({ ok: true });
-});
-
-app.post('/reset/:accountId', async (req, res) => {
-  const { accountId } = req.params;
-  console.log(`[${accountId}] Reset de sessao solicitado`);
+// ─── ROTA INICIALIZAR (ESSENCIAL) ──────────────────────
+app.post('/initialize/:id', async (req, res) => {
+  const { id } = req.params;
 
   try {
-    if (clients[accountId]) {
-      try { await clients[accountId].destroy(); } catch (_) { }
+    if (!clients[id]) {
+      clients[id] = createClient(id);
     }
 
-    const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
-    if (await fs.pathExists(sessionPath)) {
-      await fs.remove(sessionPath);
-      console.log(`[${accountId}] Pasta de sessao removida`);
-    }
+    await clients[id].initialize();
 
-    clientStates[accountId] = { ...clientStates[accountId], status: 'starting', qr: null, ready: false, loadingPercent: 0 };
-    clients[accountId] = createClient(accountId);
-
-    io.emit('status_update', { accountId, ...clientStates[accountId] });
     res.json({ ok: true });
+
   } catch (err) {
-    console.error(`[${accountId}] Erro no reset:`, err.message);
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/chats', async (req, res) => {
+// ─── STATUS ────────────────────────────────────────────
+app.get('/status', (req, res) => {
+  res.json(clientStates);
+});
+
+// ─── RESET ─────────────────────────────────────────────
+app.post('/reset/:id', async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const allResults = [];
-    for (const id of ACCOUNTS) {
-      if (!clientStates[id] || !clientStates[id].ready) continue;
-      try {
-        const chats = await withRetry(() => clients[id].getChats());
-        const mapped = chats.slice(0, 40).map(c => {
-          let name = c.name;
-          if (!name && c.id && c.id.user) name = c.id.user;
-          return {
-            id: `${id}:${c.id._serialized}`,
-            name: name || '',
-            isGroup: c.isGroup || false,
-            lastMessage: c.lastMessage ? {
-              body: c.lastMessage.body || (c.lastMessage.hasMedia ? 'Midia' : ''),
-              timestamp: c.lastMessage.timestamp || null,
-              fromMe: c.lastMessage.fromMe || false,
-            } : null,
-            unreadCount: c.unreadCount || 0,
-            accountId: id,
-          };
-        });
-        allResults.push(...mapped);
-      } catch (e) { console.error(`Erro em /chats (${id}):`, e.message); }
+    if (clients[id]) {
+      await clients[id].destroy();
+      clients[id] = createClient(id);
     }
-    allResults.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
-    res.json(allResults);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    res.json({ ok: true });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/messages/:fullId', async (req, res) => {
-  try {
-    const { accountId, chatId } = parseId(req.params.fullId);
-    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
-    const limit = parseInt(req.query.limit) || 50;
-    const chat = await withRetry(() => clients[accountId].getChatById(chatId));
-    const msgs = await withRetry(() => chat.fetchMessages({ limit }));
-    try { await chat.sendSeen(); } catch (_) { }
-    res.json(msgs.map(m => ({
-      id: m.id._serialized,
-      body: m.body || (m.hasMedia ? 'Midia' : ''),
-      fromMe: m.fromMe,
-      timestamp: m.timestamp,
-      type: m.type,
-      hasMedia: m.hasMedia,
-      ack: m.ack,
-    })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/send', async (req, res) => {
-  try {
-    const { to, body } = req.body;
-    const { accountId, chatId } = parseId(to);
-    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
-    const msg = await clients[accountId].sendMessage(chatId, body);
-    res.json({ ok: true, id: msg.id._serialized });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/avatar/:fullId', async (req, res) => {
-  try {
-    const { accountId, chatId } = parseId(req.params.fullId);
-    if (!clientStates[accountId].ready) return res.json({ url: null });
-    const url = await clients[accountId].getProfilePicUrl(chatId).catch(() => null);
-    res.json({ url: url || null });
-  } catch (err) { res.json({ url: null }); }
-});
-
-app.get('/contact/:fullId', async (req, res) => {
-  try {
-    const { accountId, chatId } = parseId(req.params.fullId);
-    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
-    const contact = await clients[accountId].getContactById(chatId).catch(() => null);
-    if (!contact) return res.json({ id: req.params.fullId, name: chatId.split('@')[0] });
-    res.json({
-      id: `${accountId}:${contact.id._serialized}`,
-      name: contact.name || contact.pushname || contact.id.user,
-      pushname: contact.pushname || '',
-      number: contact.id.user,
-      isMe: contact.isMe || false,
-      about: await contact.getAbout().catch(() => null),
-    });
-  } catch (err) { res.status(500).json({ error: 'Erro ao buscar contato' }); }
-});
-
-server.listen(PORT, '0.0.0.0', () => {
-  // Auto-inicializa cada conta com intervalo de 8s entre elas
-  ACCOUNTS.forEach((id, index) => {
-    setTimeout(() => {
-      const s = clientStates[id];
-      if (s && s.status !== 'connected' && s.status !== 'initializing' && s.status !== 'loading') {
-        console.log(`[${id}] Auto-inicializando...`);
-        clientStates[id].status = 'initializing';
-        io.emit('status_update', { accountId: id, ...clientStates[id] });
-        clients[id].initialize().catch(err => {
-          console.error(`[${id}] Erro:`, err.message);
-          clientStates[id].status = 'disconnected';
-          io.emit('status_update', { accountId: id, ...clientStates[id] });
-        });
-      }
-    }, index * 8000);
+// ─── SOCKET ────────────────────────────────────────────
+io.on('connection', (socket) => {
+  ACCOUNTS.forEach(id => {
+    socket.emit('status_update', { accountId: id, ...clientStates[id] });
   });
-  console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
+});
+
+// ─── START ─────────────────────────────────────────────
+server.listen(PORT, () => {
+  console.log('Servidor rodando na porta ' + PORT);
 });
