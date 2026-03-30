@@ -400,6 +400,26 @@ async function loadContactInfo(contactId) {
 
 let accountStates = { acc1: {}, acc2: {} };
 
+// Polling HTTP como fallback — garante que o QR aparece mesmo se o socket atrasar
+function pollStatus() {
+  fetch('/status').then(r => r.json()).then(data => {
+    Object.keys(data).forEach(id => {
+      const newState = { accountId: id, ...data[id] };
+      // Só atualiza se o estado mudou
+      if (JSON.stringify(accountStates[id]) !== JSON.stringify(data[id])) {
+        accountStates[id] = data[id];
+        updateAccountUI(newState);
+        const anyReady = Object.values(accountStates).some(s => s.status === 'connected');
+        if (anyReady) document.getElementById('enter-btn').style.display = 'block';
+      }
+    });
+  }).catch(() => {});
+}
+// Faz polling a cada 3s
+setInterval(pollStatus, 3000);
+// Executa imediatamente ao carregar
+pollStatus();
+
 socket.on('status_update', (data) => {
   accountStates[data.accountId] = data;
   updateAccountUI(data);
