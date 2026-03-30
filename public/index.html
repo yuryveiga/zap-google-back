@@ -1,613 +1,1221 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>WhatsApp</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600&display=swap" rel="stylesheet"/>
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhatsApp Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  :root {
-    --bg-app:        #111b21;
-    --bg-sidebar:    #111b21;
-    --bg-chat:       #0b141a;
-    --bg-panel:      #1f2c33;
-    --bg-input:      #2a3942;
-    --bg-msg-out:    #005c4b;
-    --bg-msg-in:     #1f2c33;
-    --bg-hover:      #2a3942;
-    --bg-active:     #2a3942;
-    --accent:        #00a884;
-    --accent-dim:    #00896c;
-    --text-primary:  #e9edef;
-    --text-secondary:#8696a0;
-    --text-meta:     #667781;
-    --border:        #222d34;
-    --tick-read:     #53bdeb;
-    --search-bg:     #2a3942;
-    --radius-msg:    7.5px;
-    --sidebar-w:     380px;
-    --font:          'Nunito', sans-serif;
-    --transition:    .15s ease;
-  }
+    :root {
+      --bg-app: #111b21;
+      --bg-sidebar: #111b21;
+      --bg-chat: #0b141a;
+      --bg-panel: #1f2c33;
+      --bg-input: #2a3942;
+      --bg-msg-out: #005c4b;
+      --bg-msg-in: #1f2c33;
+      --bg-hover: #2a3942;
+      --bg-active: #2a3942;
+      --accent: #00a884;
+      --accent-dim: #00896c;
+      --text-primary: #e9edef;
+      --text-secondary: #8696a0;
+      --text-meta: #667781;
+      --border: #222d34;
+      --tick-read: #53bdeb;
+      --search-bg: #2a3942;
+      --radius-msg: 7.5px;
+      --sidebar-w: 380px;
+      --font: 'Nunito', sans-serif;
+      --transition: .15s ease;
+    }
 
-  html, body { height: 100%; overflow: hidden; background: var(--bg-app); font-family: var(--font); color: var(--text-primary); }
-  #app { display: flex; height: 100vh; width: 100vw; }
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-app);
+      font-family: var(--font);
+      color: var(--text-primary);
+    }
 
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-  #accounts-grid { display: flex; gap: 40px; justify-content: center; }
-  .account-card {
-    background: var(--bg-panel); padding: 24px; border-radius: 16px;
-    display: flex; flex-direction: column; align-items: center; gap: 16px;
-    width: 280px; box-shadow: 0 4px 20px rgba(0,0,0,.4);
-  }
-  .account-card h3 { font-size: 18px; color: var(--accent); }
-  .qr-container { 
-    width: 200px; height: 200px; background: #fff; border-radius: 8px;
-    display: flex; align-items: center; justify-content: center; overflow: hidden;
-  }
-  .qr-container img { width: 100%; height: 100%; }
-  .account-status { font-size: 13px; color: var(--text-secondary); text-align: center; }
-  .status-ready { color: var(--accent); font-weight: 600; }
-  .action-btn { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight:600; transition: transform 0.2s; }
-  .action-btn:active { transform: scale(0.95); }
-  .account-badge {
-    font-size: 10px; background: var(--bg-input); padding: 2px 6px; 
-    border-radius: 4px; color: var(--text-secondary); font-weight: 600;
-  }
+    #app {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
 
-  /* Sidebar */
-  #sidebar {
-    width: var(--sidebar-w); min-width: var(--sidebar-w); display: flex; flex-direction: column;
-    background: var(--bg-sidebar); border-right: 1px solid var(--border); overflow: hidden;
-  }
-  #sidebar-header {
-    display: flex; align-items: center; gap: 14px;
-    padding: 10px 16px; background: var(--bg-panel); min-height: 60px;
-  }
-  #search-bar { padding: 8px 12px; background: var(--bg-sidebar); }
-  #search-bar input {
-    width: 100%; background: var(--search-bg); border: none; outline: none;
-    border-radius: 8px; padding: 9px 16px 9px 36px; color: var(--text-primary);
-    font-family: var(--font); font-size: 14px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7' stroke='%238696a0' stroke-width='2'/%3E%3Cpath d='M16.5 16.5L21 21' stroke='%238696a0' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: 10px center;
-  }
-  #search-bar input::placeholder { color: var(--text-meta); }
+    /* ── Account bar (esquerda) ── */
+    #account-bar {
+      width: 60px;
+      background: #202c33;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      gap: 8px;
+      border-right: 1px solid var(--border);
+      flex-shrink: 0;
+    }
 
-  #chat-list { flex: 1; overflow-y: auto; }
-  #chat-list::-webkit-scrollbar { width: 6px; }
-  #chat-list::-webkit-scrollbar-thumb { background: var(--bg-input); border-radius: 3px; }
+    .acc-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      transition: all var(--transition);
+      position: relative;
+      flex-shrink: 0;
+    }
 
-  .chat-item {
-    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
-    cursor: pointer; border-bottom: 1px solid var(--border); transition: background var(--transition);
-    min-height: 72px;
-  }
-  .chat-item:hover { background: var(--bg-hover); }
-  .chat-item.active { background: var(--bg-active); }
+    .acc-btn:hover {
+      border-color: var(--accent);
+    }
 
-  .avatar {
-    width: 49px; height: 49px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px; font-weight: 600; color: #fff; overflow: hidden;
-  }
-  .avatar.sm { width: 40px; height: 40px; font-size: 15px; }
-  .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+    .acc-btn.active {
+      border-color: var(--accent);
+    }
 
-  .chat-info { flex: 1; min-width: 0; }
-  .chat-row1 { display: flex; align-items: center; justify-content: space-between; }
-  .chat-name { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
-  .chat-time { font-size: 12px; color: var(--text-meta); flex-shrink: 0; margin-left: 8px; }
-  .chat-row2 { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
-  .chat-preview { font-size: 14px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .unread-badge {
-    background: var(--accent); color: #fff; font-size: 11px; font-weight: 600;
-    border-radius: 50%; min-width: 18px; height: 18px; display: flex; align-items: center;
-    justify-content: center; padding: 0 4px; flex-shrink: 0; margin-left: 6px;
-  }
-  .empty-list { text-align: center; padding: 40px 20px; color: var(--text-secondary); font-size: 14px; }
+    .acc-btn .acc-dot {
+      position: absolute;
+      bottom: 1px;
+      right: 1px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid #202c33;
+    }
 
-  /* Chat Area */
-  #chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg-chat); position: relative; overflow: hidden; }
-  #chat-area::before {
-    content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .04;
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
-  }
+    .acc-dot.connected {
+      background: var(--accent);
+    }
 
-  #welcome-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
-  #welcome-screen svg { opacity: .12; }
-  #welcome-screen h3 { font-size: 32px; font-weight: 300; opacity: .8; }
-  #welcome-screen p  { color: var(--text-secondary); font-size: 14px; }
+    .acc-dot.pending {
+      background: #f0ad4e;
+    }
 
-  #chat-header {
-    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
-    background: var(--bg-panel); min-height: 60px; z-index: 1; flex-shrink: 0;
-    cursor: pointer;
-  }
-  #chat-header:hover { background: var(--bg-hover); }
-  #header-info { flex: 1; }
-  #header-name { font-size: 16px; font-weight: 600; }
-  #header-status { font-size: 13px; color: var(--text-secondary); }
+    .acc-dot.loading {
+      background: #5bc0de;
+    }
 
-  /* Contact info panel */
-  #contact-panel {
-    position: absolute; top: 0; right: -360px; width: 360px; height: 100%;
-    background: var(--bg-sidebar); z-index: 10; display: flex; flex-direction: column;
-    transition: right .25s ease; box-shadow: -4px 0 16px rgba(0,0,0,.3);
-  }
-  #contact-panel.open { right: 0; }
-  #contact-panel-header {
-    display: flex; align-items: center; gap: 16px; padding: 16px;
-    background: var(--bg-panel); min-height: 60px;
-  }
-  #contact-panel-header span { font-size: 16px; font-weight: 600; }
-  .close-btn {
-    background: none; border: none; color: var(--text-secondary); cursor: pointer;
-    font-size: 20px; line-height: 1; padding: 4px; transition: color var(--transition);
-  }
-  .close-btn:hover { color: var(--text-primary); }
-  #contact-panel-body { flex: 1; overflow-y: auto; padding: 0 0 24px; }
-  .contact-cover {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 32px 16px 24px; gap: 12px; background: var(--bg-panel); margin-bottom: 8px;
-  }
-  .contact-cover .avatar { width: 100px; height: 100px; font-size: 38px; }
-  .contact-cover h2 { font-size: 20px; font-weight: 600; text-align: center; }
-  .contact-cover p { font-size: 14px; color: var(--text-secondary); text-align: center; }
-  .contact-section { padding: 16px; }
-  .contact-section h4 { font-size: 13px; color: var(--accent); font-weight: 600; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
-  .contact-field { display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid var(--border); }
-  .contact-field:last-child { border-bottom: none; }
-  .contact-field label { font-size: 12px; color: var(--text-meta); }
-  .contact-field span { font-size: 15px; color: var(--text-primary); }
+    .acc-dot.disconnected {
+      background: #d9534f;
+    }
 
-  /* Messages */
-  #messages-area {
-    flex: 1; overflow-y: auto; padding: 20px 8% 12px; display: flex; flex-direction: column; gap: 2px;
-    position: relative; z-index: 1;
-  }
-  #messages-area::-webkit-scrollbar { width: 6px; }
-  #messages-area::-webkit-scrollbar-thumb { background: var(--bg-input); border-radius: 3px; }
+    .acc-dot.starting {
+      background: var(--text-meta);
+    }
 
-  .msg-day-divider { text-align: center; margin: 12px 0; }
-  .msg-day-divider span { background: var(--bg-panel); color: var(--text-secondary); font-size: 12px; padding: 5px 12px; border-radius: 8px; }
+    /* ── Setup screen (QR) ── */
+    #setup-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      background: var(--bg-app);
+      overflow-y: auto;
+      padding: 20px;
+    }
 
-  .msg-bubble {
-    max-width: 65%; padding: 6px 10px 4px; border-radius: var(--radius-msg);
-    font-size: 14.5px; line-height: 1.5; position: relative; word-break: break-word;
-    animation: fadeIn .15s ease;
-  }
-  @keyframes fadeIn { from { opacity:0; transform: translateY(4px); } to { opacity:1; transform: none; } }
-  .msg-bubble.out { background: var(--bg-msg-out); align-self: flex-end; border-radius: var(--radius-msg) 0 var(--radius-msg) var(--radius-msg); }
-  .msg-bubble.in  { background: var(--bg-msg-in);  align-self: flex-start; border-radius: 0 var(--radius-msg) var(--radius-msg) var(--radius-msg); }
+    #setup-screen h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
 
-  .msg-meta { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 2px; }
-  .msg-time { font-size: 11px; color: var(--text-meta); }
-  .msg-tick { font-size: 12px; color: var(--text-meta); }
-  .msg-tick.read { color: var(--tick-read); }
+    #accounts-grid {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
 
-  /* Input */
-  #input-area { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--bg-panel); z-index: 1; flex-shrink: 0; }
-  #msg-input {
-    flex: 1; background: var(--bg-input); border: none; outline: none;
-    border-radius: 10px; padding: 11px 16px; color: var(--text-primary);
-    font-family: var(--font); font-size: 15px; resize: none; max-height: 120px; line-height: 1.5;
-  }
-  #msg-input::placeholder { color: var(--text-meta); }
-  #send-btn {
-    width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
-    background: var(--accent); color: #fff; display: flex; align-items: center;
-    justify-content: center; transition: background var(--transition); flex-shrink: 0;
-  }
-  #send-btn:hover { background: var(--accent-dim); }
-  #send-btn:disabled { background: var(--bg-input); cursor: not-allowed; }
+    .acc-card {
+      background: var(--bg-panel);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      min-width: 240px;
+      border: 1px solid var(--border);
+    }
 
-  .loading-spinner {
-    width: 28px; height: 28px; border: 3px solid var(--border);
-    border-top-color: var(--accent); border-radius: 50%;
-    animation: spin .7s linear infinite; margin: 40px auto; display: block;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .close-chat-btn {
-    background: none; border: none; color: var(--text-secondary); cursor: pointer;
-    font-size: 18px; padding: 4px 8px; border-radius: 4px; transition: all var(--transition);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .close-chat-btn:hover { color: var(--text-primary); background: var(--border); }
-</style>
-</head>
-<body>
-<div id="app">
+    .acc-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+    }
 
-  <!-- QR Screen -->
-  <div id="qr-screen">
-    <div style="text-align:center; margin-bottom: 20px">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="margin-bottom:10px">
-          <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#00a884"/>
-        </svg>
-        <h2>WhatsApp Web Multi-Conta</h2>
-        <p style="color:var(--text-secondary); font-size:14px; margin-top:8px">Conecte até 2 números simultaneamente</p>
-    </div>
-    
-    <div id="accounts-grid">
-      <div class="account-card" id="card-acc1">
-        <h3>Conta 1</h3>
-        <div class="qr-container" id="qr-acc1">
-          <div class="loading-spinner" style="margin:0"></div>
-        </div>
-        <p class="account-status" id="status-acc1">Iniciando...</p>
-      </div>
-      <div class="account-card" id="card-acc2">
-        <h3>Conta 2</h3>
-        <div class="qr-container" id="qr-acc2">
-          <div class="loading-spinner" style="margin:0"></div>
-        </div>
-        <p class="account-status" id="status-acc2">Iniciando...</p>
-      </div>
-    </div>
-    
-    <button id="enter-btn" style="display:none; margin-top:30px; background:var(--accent); color:white; border:none; padding:12px 32px; border-radius:24px; cursor:pointer; font-weight:600" onclick="enterApp()">
-        Entrar na Central de Mensagens
-    </button>
-  </div>
+    .acc-card .acc-status {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
 
-  <!-- Sidebar -->
-  <div id="sidebar" style="display:none">
-    <div id="sidebar-header">
-      <div class="avatar sm" id="my-avatar" style="background:#667781">W</div>
-      <span style="font-size:18px;font-weight:600;flex:1">WhatsApp</span>
-    </div>
-    <div id="search-bar">
-      <input type="text" id="search-input" placeholder="Pesquisar conversas" oninput="filterChats(this.value)"/>
-    </div>
-    <div id="chat-list"><div class="loading-spinner"></div></div>
-  </div>
+    .acc-card .qr-box {
+      width: 200px;
+      height: 200px;
+      background: #fff;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+    }
 
-  <!-- Chat Area -->
-  <div id="chat-area" style="display:none">
-    <div id="welcome-screen">
-      <svg width="180" height="180" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#00a884"/>
-      </svg>
-      <h3>WhatsApp Web</h3>
-      <p>Selecione uma conversa para começar</p>
-    </div>
-    <!-- Contact info panel (injected inside chat-area for positioning) -->
-    <div id="contact-panel">
-      <div id="contact-panel-header">
-        <button class="close-btn" onclick="closeContactPanel()">&#x2715;</button>
-        <span>Informações do contato</span>
-      </div>
-      <div id="contact-panel-body"></div>
-    </div>
-  </div>
+    .acc-card .qr-box img {
+      width: 100%;
+      height: 100%;
+    }
 
-</div>
+    .acc-card .qr-placeholder {
+      width: 200px;
+      height: 200px;
+      background: var(--bg-input);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      text-align: center;
+      padding: 16px;
+    }
 
-<script>
-const socket = io();
+    .btn-connect {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition);
+      width: 100%;
+    }
 
-let allChats    = [];
-let activeChat  = null;
-let avatarCache = {};
-let contactCache = {};
+    .btn-connect:hover {
+      background: var(--accent-dim);
+    }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+    .btn-connect:disabled {
+      background: var(--bg-input);
+      cursor: not-allowed;
+      color: var(--text-meta);
+    }
 
-function getSafeId(id) {
-  return 'av-' + id.replace(/[^a-zA-Z0-9_-]/g, '_');
-}
+    .btn-reset {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-family: var(--font);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all var(--transition);
+      width: 100%;
+    }
 
-function formatTime(ts) {
-  if (!ts) return '';
-  const d = new Date(ts * 1000), now = new Date();
-  if (d.toDateString() === now.toDateString())
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  const y = new Date(now); y.setDate(now.getDate() - 1);
-  if (d.toDateString() === y.toDateString()) return 'Ontem';
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-}
+    .btn-reset:hover {
+      border-color: #d9534f;
+      color: #d9534f;
+    }
 
-function formatDayLabel(ts) {
-  if (!ts) return '';
-  const d = new Date(ts * 1000), now = new Date();
-  if (d.toDateString() === now.toDateString()) return 'Hoje';
-  const y = new Date(now); y.setDate(now.getDate() - 1);
-  if (d.toDateString() === y.toDateString()) return 'Ontem';
-  return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
-}
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-meta);
+      display: inline-block;
+      margin-right: 6px;
+      animation: pulse 1.5s infinite;
+    }
 
-function initials(name) {
-  if (!name) return '?';
-  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-}
+    @keyframes pulse {
 
-const AVATAR_COLORS = ['#e74c3c','#e67e22','#2ecc71','#3498db','#9b59b6','#1abc9c','#e91e63','#00bcd4','#ff5722','#607d8b'];
-function avatarColor(name) {
-  let h = 0;
-  for (let i = 0; i < (name||'').length; i++) h += name.charCodeAt(i);
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-
-function renderAvatar(name, url, size = '') {
-  const cls = 'avatar' + (size === 'sm' ? ' sm' : '') + (size === 'lg' ? ' lg' : '');
-  const img = url ? `<img src="${url}" onerror="this.style.display='none'"/>` : '';
-  return `<div class="${cls}" style="background:${avatarColor(name)}">${img}${url ? '' : initials(name)}</div>`;
-}
-
-function tickIcon(ack) {
-  if (ack === 3) return '<span class="msg-tick read">&#10003;&#10003;</span>';
-  if (ack === 2) return '<span class="msg-tick">&#10003;&#10003;</span>';
-  if (ack === 1) return '<span class="msg-tick">&#10003;</span>';
-  return '<span class="msg-tick" style="font-size:10px">&#128336;</span>';
-}
-
-function escapeHtml(t) {
-  return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// ── Avatar loading em lotes ───────────────────────────────────────────────────
-
-async function loadAvatarBatch(chats) {
-  // Carrega em lotes de 5 para não sobrecarregar
-  const batchSize = 5;
-  for (let i = 0; i < chats.length; i += batchSize) {
-    const batch = chats.slice(i, i + batchSize);
-    await Promise.all(batch.map(async c => {
-      if (avatarCache[c.id] !== undefined) return;
-      try {
-        const r = await fetch('/avatar/' + encodeURIComponent(c.id));
-        const d = await r.json();
-        avatarCache[c.id] = d.url || null;
-        // Atualiza o elemento na lista se ainda estiver visível
-        const el = document.getElementById(getSafeId(c.id));
-        if (el && d.url) {
-          el.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>`;
-        }
-        // Se for o chat ativo, atualiza o cabeçalho também
-        if (activeChat && activeChat.id === c.id) {
-            const headerAv = document.querySelector('#chat-header .avatar');
-            if (headerAv && d.url) {
-                headerAv.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>`;
-            }
-        }
-      } catch (_) {
-        avatarCache[c.id] = null;
+      0%,
+      100% {
+        opacity: 1
       }
-    }));
-    // Pequena pausa entre lotes
-    await new Promise(r => setTimeout(r, 100));
-  }
-}
 
-// ── Carregar info do contato ──────────────────────────────────────────────────
+      50% {
+        opacity: .3
+      }
+    }
 
-async function loadContactInfo(contactId) {
-  if (contactCache[contactId]) return contactCache[contactId];
-  try {
-    const r = await fetch('/contact/' + encodeURIComponent(contactId));
-    const d = await r.json();
-    contactCache[contactId] = d;
-    return d;
-  } catch (_) { return null; }
-}
+    .loading-bar {
+      width: 100%;
+      height: 4px;
+      background: var(--bg-input);
+      border-radius: 2px;
+      overflow: hidden;
+    }
 
-// ── Socket events ─────────────────────────────────────────────────────────────
+    .loading-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width .5s;
+    }
 
-let accountStates = { acc1: {}, acc2: {} };
+    /* ── Main layout ── */
+    #main {
+      flex: 1;
+      display: none;
+    }
 
-// Polling HTTP como fallback — garante que o QR aparece mesmo se o socket atrasar
-function pollStatus() {
-  fetch('/status').then(r => r.json()).then(data => {
-    Object.keys(data).forEach(id => {
-      const newState = { accountId: id, ...data[id] };
-      // Só atualiza se o estado mudou
-      if (JSON.stringify(accountStates[id]) !== JSON.stringify(data[id])) {
-        accountStates[id] = data[id];
-        updateAccountUI(newState);
-        const anyReady = Object.values(accountStates).some(s => s.status === 'connected');
-        if (anyReady) document.getElementById('enter-btn').style.display = 'block';
+    #main.visible {
+      display: flex;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--bg-panel);
+      min-height: 60px;
+      flex-shrink: 0;
+    }
+
+    #sidebar-header span {
+      font-size: 17px;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .acc-tag {
+      font-size: 11px;
+      background: var(--bg-input);
+      color: var(--text-secondary);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    #search-bar {
+      padding: 8px 12px;
+      background: var(--bg-sidebar);
+      flex-shrink: 0;
+    }
+
+    #search-bar input {
+      width: 100%;
+      background: var(--search-bg);
+      border: none;
+      outline: none;
+      border-radius: 8px;
+      padding: 9px 16px 9px 36px;
+      color: var(--text-primary);
+      font-family: var(--font);
+      font-size: 14px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7' stroke='%238696a0' stroke-width='2'/%3E%3Cpath d='M16.5 16.5L21 21' stroke='%238696a0' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 10px center;
+    }
+
+    #search-bar input::placeholder {
+      color: var(--text-meta);
+    }
+
+    /* Account filter tabs */
+    #acc-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .acc-tab {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      border-bottom: 2px solid transparent;
+      transition: all var(--transition);
+    }
+
+    .acc-tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+
+    .acc-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .acc-tab .tab-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+
+    #chat-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    #chat-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #chat-list::-webkit-scrollbar-thumb {
+      background: var(--bg-input);
+      border-radius: 3px;
+    }
+
+    .chat-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background var(--transition);
+      min-height: 72px;
+    }
+
+    .chat-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .chat-item.active {
+      background: var(--bg-active);
+    }
+
+    .avatar {
+      width: 49px;
+      height: 49px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .avatar.sm {
+      width: 40px;
+      height: 40px;
+      font-size: 15px;
+    }
+
+    .avatar.lg {
+      width: 80px;
+      height: 80px;
+      font-size: 30px;
+    }
+
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      position: absolute;
+      inset: 0;
+    }
+
+    .avatar .acc-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--bg-sidebar);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .chat-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .chat-row1 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chat-name {
+      font-size: 15px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-primary);
+    }
+
+    .chat-time {
+      font-size: 12px;
+      color: var(--text-meta);
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+
+    .chat-row2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 3px;
+    }
+
+    .chat-preview {
+      font-size: 13px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .unread-badge {
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 50%;
+      min-width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      flex-shrink: 0;
+      margin-left: 6px;
+    }
+
+    .empty-list {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* ── Chat Area ── */
+    #chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-chat);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #chat-area::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .04;
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    #welcome-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    #welcome-screen svg {
+      opacity: .1;
+    }
+
+    #welcome-screen h3 {
+      font-size: 28px;
+      font-weight: 300;
+      opacity: .7;
+    }
+
+    #welcome-screen p {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    #chat-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--bg-panel);
+      min-height: 60px;
+      z-index: 1;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    #chat-header:hover {
+      background: var(--bg-hover);
+    }
+
+    #header-info {
+      flex: 1;
+    }
+
+    #header-name {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    #header-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Contact panel */
+    #contact-panel {
+      position: absolute;
+      top: 0;
+      right: -360px;
+      width: 360px;
+      height: 100%;
+      background: var(--bg-sidebar);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      transition: right .25s ease;
+      box-shadow: -4px 0 16px rgba(0, 0, 0, .3);
+    }
+
+    #contact-panel.open {
+      right: 0;
+    }
+
+    #cp-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--bg-panel);
+      min-height: 60px;
+    }
+
+    #cp-header span {
+      font-size: 16px;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 20px;
+      padding: 4px;
+      transition: color var(--transition);
+    }
+
+    .close-btn:hover {
+      color: var(--text-primary);
+    }
+
+    #cp-body {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .cp-cover {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 20px;
+      gap: 10px;
+      background: var(--bg-panel);
+      margin-bottom: 8px;
+    }
+
+    .cp-cover h2 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .cp-cover p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .cp-section {
+      padding: 12px 16px;
+    }
+
+    .cp-section h4 {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    .cp-field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cp-field:last-child {
+      border-bottom: none;
+    }
+
+    .cp-field label {
+      font-size: 11px;
+      color: var(--text-meta);
+    }
+
+    .cp-field span {
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    /* Messages */
+    #messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 8% 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      position: relative;
+      z-index: 1;
+    }
+
+    #messages-area::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #messages-area::-webkit-scrollbar-thumb {
+      background: var(--bg-input);
+      border-radius: 3px;
+    }
+
+    .msg-day-divider {
+      text-align: center;
+      margin: 10px 0;
+    }
+
+    .msg-day-divider span {
+      background: var(--bg-panel);
+      color: var(--text-secondary);
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: 8px;
+    }
+
+    .msg-bubble {
+      max-width: 65%;
+      padding: 6px 10px 4px;
+      border-radius: var(--radius-msg);
+      font-size: 14.5px;
+      line-height: 1.5;
+      word-break: break-word;
+      animation: fadeIn .15s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(3px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    .msg-bubble.out {
+      background: var(--bg-msg-out);
+      align-self: flex-end;
+      border-radius: var(--radius-msg) 0 var(--radius-msg) var(--radius-msg);
+    }
+
+    .msg-bubble.in {
+      background: var(--bg-msg-in);
+      align-self: flex-start;
+      border-radius: 0 var(--radius-msg) var(--radius-msg) var(--radius-msg);
+    }
+
+    .msg-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .msg-time {
+      font-size: 11px;
+      color: var(--text-meta);
+    }
+
+    .msg-tick {
+      font-size: 12px;
+      color: var(--text-meta);
+    }
+
+    .msg-tick.read {
+      color: var(--tick-read);
+    }
+
+    /* Input */
+    #input-area {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--bg-panel);
+      z-index: 1;
+      flex-shrink: 0;
+    }
+
+    #msg-input {
+      flex: 1;
+      background: var(--bg-input);
+      border: none;
+      outline: none;
+      border-radius: 10px;
+      padding: 11px 16px;
+      color: var(--text-primary);
+      font-family: var(--font);
+      font-size: 15px;
+      resize: none;
+      max-height: 120px;
+      line-height: 1.5;
+    }
+
+    #msg-input::placeholder {
+      color: var(--text-meta);
+    }
+
+    #send-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--transition);
+      flex-shrink: 0;
+    }
+
+    #send-btn:hover {
+      background: var(--accent-dim);
+    }
+
+    #send-btn:disabled {
+      background: var(--bg-input);
+      cursor: not-allowed;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin: 40px auto;
+      display: block;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+
+    <!-- Account bar -->
+    <div id="account-bar"></div>
+
+    <!-- Setup / QR screen -->
+    <div id="setup-screen">
+      <h2>WhatsApp Web</h2>
+      <div id="accounts-grid"></div>
+    </div>
+
+    <!-- Main app -->
+    <div id="main">
+      <div id="sidebar">
+        <div id="sidebar-header">
+          <div class="avatar sm" id="my-avatar" style="background:#667781">W</div>
+          <span>WhatsApp</span>
+          <span class="acc-tag" id="active-acc-tag">acc1</span>
+        </div>
+        <div id="search-bar">
+          <input type="text" id="search-input" placeholder="Pesquisar conversas" oninput="filterChats(this.value)" />
+        </div>
+        <div id="acc-tabs"></div>
+        <div id="chat-list">
+          <div class="spinner"></div>
+        </div>
+      </div>
+
+      <div id="chat-area">
+        <div id="welcome-screen">
+          <svg width="160" height="160" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"
+              fill="#00a884" />
+          </svg>
+          <h3>WhatsApp Web</h3>
+          <p>Selecione uma conversa para comecar</p>
+        </div>
+        <div id="contact-panel">
+          <div id="cp-header">
+            <button class="close-btn" onclick="closeContactPanel()">&#x2715;</button>
+            <span>Informacoes do contato</span>
+          </div>
+          <div id="cp-body"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <script>
+    const socket = io();
+
+    // ── Estado ────────────────────────────────────────────────────────────────────
+    let accountStates = {};   // { acc1: { status, qr, ready, loadingPercent }, ... }
+    let allChats = [];
+    let activeChat = null;
+    let activeFilter = 'all';
+    let avatarCache = {};
+    let contactCache = {};
+
+    // ── Cores ─────────────────────────────────────────────────────────────────────
+    const COLORS = ['#e74c3c', '#e67e22', '#2ecc71', '#3498db', '#9b59b6', '#1abc9c', '#e91e63', '#00bcd4', '#ff5722', '#607d8b'];
+    const ACC_COLORS = { acc1: '#00a884', acc2: '#3498db', acc3: '#9b59b6', acc4: '#e74c3c' };
+
+    function avatarColor(name) {
+      let h = 0; for (let i = 0; i < (name || '').length; i++) h += name.charCodeAt(i);
+      return COLORS[h % COLORS.length];
+    }
+    function accColor(id) { return ACC_COLORS[id] || '#667781'; }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────────
+    function esc(t) { return (t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+    function initials(name) {
+      if (!name) return '?';
+      return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    }
+
+    function formatTime(ts) {
+      if (!ts) return '';
+      const d = new Date(ts * 1000), now = new Date();
+      if (d.toDateString() === now.toDateString())
+        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const y = new Date(now); y.setDate(now.getDate() - 1);
+      if (d.toDateString() === y.toDateString()) return 'Ontem';
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    }
+
+    function formatDay(ts) {
+      if (!ts) return '';
+      const d = new Date(ts * 1000), now = new Date();
+      if (d.toDateString() === now.toDateString()) return 'Hoje';
+      const y = new Date(now); y.setDate(now.getDate() - 1);
+      if (d.toDateString() === y.toDateString()) return 'Ontem';
+      return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+    }
+
+    function tick(ack) {
+      if (ack === 3) return '<span class="msg-tick read">&#10003;&#10003;</span>';
+      if (ack === 2) return '<span class="msg-tick">&#10003;&#10003;</span>';
+      if (ack === 1) return '<span class="msg-tick">&#10003;</span>';
+      return '<span class="msg-tick" style="font-size:10px">&#9679;</span>';
+    }
+
+    function avatarEl(name, url, cls = '', accId = '') {
+      const badge = accId ? `<div class="acc-badge" style="background:${accColor(accId)}">${accId.replace('acc', '')}</div>` : '';
+      const img = url ? `<img src="${url}" onerror="this.style.display='none'"/>` : '';
+      return `<div class="avatar ${cls}" style="background:${avatarColor(name)}">${img}${initials(name)}${badge}</div>`;
+    }
+
+    // ── Socket events ─────────────────────────────────────────────────────────────
+    socket.on('status_update', ({ accountId, status, qr, ready, loadingPercent }) => {
+      accountStates[accountId] = { status, qr, ready, loadingPercent };
+      updateAccountBar();
+      updateSetupCards();
+
+      // Se pelo menos uma conta conectada, mostra o main
+      const anyConnected = Object.values(accountStates).some(s => s.ready);
+      if (anyConnected) {
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('main').classList.add('visible');
+        loadChats();
+        renderAccTabs();
       }
     });
-  }).catch(() => {});
-}
-// Faz polling a cada 3s
-setInterval(pollStatus, 3000);
-// Executa imediatamente ao carregar
-pollStatus();
 
-socket.on('status_update', (data) => {
-  accountStates[data.accountId] = data;
-  updateAccountUI(data);
-  
-  // Se pelo menos uma conta estiver pronta, permite entrar
-  const anyReady = Object.values(accountStates).some(s => s.status === 'connected');
-  if (anyReady) {
-    document.getElementById('enter-btn').style.display = 'block';
-  }
-});
+    socket.on('new_message', (msg) => {
+      const chat = allChats.find(c => c.id === msg.accountId + ':' + msg.chatId);
+      if (chat) {
+        chat.lastMessage = { body: msg.body, timestamp: msg.timestamp, fromMe: msg.fromMe };
+        renderChatList();
+      }
+      if (activeChat && activeChat.id === msg.accountId + ':' + msg.chatId) {
+        appendMessage(msg);
+        scrollBottom();
+      }
+    });
 
-function updateAccountUI({ accountId, status, qr, loadingPercent }) {
-  const container = document.getElementById('qr-' + accountId);
-  const statusEl = document.getElementById('status-' + accountId);
-  
-  if (status === 'connected') {
-    container.innerHTML = '<svg width="80" height="80" viewBox="0 0 24 24" fill="#00a884"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>';
-    statusEl.innerHTML = '<span class="status-ready">CONECTADO</span>';
-  } else if (status === 'initializing' || status === 'loading' || status === 'authenticated') {
-    container.innerHTML = '<div class="loading-spinner" style="margin:0"></div>';
-    let text = 'Iniciando...';
-    if (status === 'loading') text = `Carregando (${loadingPercent || 0}%)`;
-    if (status === 'authenticated') text = 'Autenticado, abrindo...';
-    statusEl.textContent = text;
-  } else if (status === 'pending' && qr) {
-    container.innerHTML = `<img src="${qr}"/>`;
-    statusEl.textContent = 'Escaneie o QR Code';
-  } else {
-    // Starting ou Disconnected
-    container.innerHTML = `
-        <button class="action-btn" onclick="startAccount('${accountId}')">Conectar</button>
-        <button class="reset-btn" onclick="resetAccount('${accountId}')" style="margin-top:10px; background:transparent; color:#ff4b2b; border:1px solid #ff4b2b; font-size:11px; padding:4px 8px; border-radius:4px; cursor:pointer">Limpar Sessao</button>
-    `;
-    statusEl.textContent = status === 'disconnected' ? 'Desconectado' : 'Clique para iniciar';
-  }
-}
-
-async function startAccount(accountId) {
-    const statusEl = document.getElementById('status-' + accountId);
-    const oldText = statusEl.textContent;
-    statusEl.textContent = 'Solicitando...';
-    try {
-        const r = await fetch('/initialize/' + accountId, { method: 'POST' });
-        if (!r.ok) {
-            const data = await r.json();
-            alert('Erro: ' + (data.error || 'Nao foi possivel iniciar'));
-            statusEl.textContent = oldText;
-        }
-    } catch (e) {
-        alert('Erro de conexão com o servidor');
-        statusEl.textContent = 'Erro';
+    // ── Account bar ───────────────────────────────────────────────────────────────
+    function updateAccountBar() {
+      const bar = document.getElementById('account-bar');
+      bar.innerHTML = Object.entries(accountStates).map(([id, s]) => `
+    <div class="acc-btn ${activeFilter === id ? 'active' : ''}" style="background:${accColor(id)}"
+      onclick="setAccFilter('${id}')" title="${id}: ${s.status}">
+      ${id.replace('acc', '')}
+      <div class="acc-dot ${s.status}"></div>
+    </div>`).join('') +
+        `<div class="acc-btn" style="background:var(--bg-input);margin-top:auto"
+      onclick="showSetup()" title="Gerenciar contas" style="font-size:20px">&#9881;</div>`;
     }
-}
 
-async function resetAccount(accountId) {
-    if (!confirm('Isso vai apagar os arquivos de sessao desta conta. Continuar?')) return;
-    try {
-        await fetch('/reset/' + accountId, { method: 'POST' });
-        alert('Sessao reiniciada. Tente conectar novamente.');
-    } catch (e) {
-        alert('Erro ao resetar sessao');
+    function showSetup() {
+      document.getElementById('setup-screen').style.display = 'flex';
+      document.getElementById('main').classList.remove('visible');
+      updateSetupCards();
     }
-}
 
-function enterApp() {
-    document.getElementById('qr-screen').style.display = 'none';
-    document.getElementById('sidebar').style.display = 'flex';
-    document.getElementById('chat-area').style.display = 'flex';
-    loadChats();
-}
+    // ── Setup cards ───────────────────────────────────────────────────────────────
+    function updateSetupCards() {
+      const grid = document.getElementById('accounts-grid');
+      grid.innerHTML = Object.entries(accountStates).map(([id, s]) => {
+        const statusLabel = {
+          starting: 'Iniciando...', initializing: 'Inicializando...', loading: `Carregando ${s.loadingPercent || 0}%`,
+          pending: 'Aguardando QR Code', authenticated: 'Autenticado', connected: 'Conectado',
+          disconnected: 'Desconectado'
+        }[s.status] || s.status;
 
-socket.on('new_message', (msg) => {
-  const fullChatId = msg.accountId + ':' + msg.chatId;
-  const chat = allChats.find(c => c.id === fullChatId);
-  if (chat) {
-    chat.lastMessage = { body: msg.body, timestamp: msg.timestamp, fromMe: msg.fromMe };
-    renderChatList(allChats);
-  }
-  if (activeChat && fullChatId === activeChat.id) {
-    appendMessage(msg);
-    scrollToBottom();
-  }
-});
+        const qrHtml = s.qr
+          ? `<div class="qr-box"><img src="${s.qr}"/></div>`
+          : s.status === 'connected'
+            ? `<div class="qr-placeholder" style="color:var(--accent)">&#10003;<br/>Conectado</div>`
+            : `<div class="qr-placeholder"><span class="status-dot"></span>${statusLabel}</div>`;
 
-// ── Load chats ────────────────────────────────────────────────────────────────
+        const canConnect = s.status === 'disconnected' || s.status === 'starting';
+        const isLoading = s.status === 'initializing' || s.status === 'loading';
 
-async function loadChats() {
-  document.getElementById('chat-list').innerHTML = '<div class="loading-spinner"></div>';
-  try {
-    const r = await fetch('/chats');
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    allChats = await r.json();
-    renderChatList(allChats);
-    // Carrega avatares em background após renderizar
-    loadAvatarBatch(allChats);
-  } catch (e) {
-    document.getElementById('chat-list').innerHTML = '<p class="empty-list">Erro ao carregar conversas: ' + e.message + '</p>';
-  }
-}
+        return `
+      <div class="acc-card">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:12px;height:12px;border-radius:50%;background:${accColor(id)}"></div>
+          <h3>${id}</h3>
+        </div>
+        <p class="acc-status">${statusLabel}</p>
+        ${isLoading ? `<div class="loading-bar"><div class="loading-bar-fill" style="width:${s.loadingPercent || 10}%"></div></div>` : ''}
+        ${qrHtml}
+        <button class="btn-connect" onclick="initAccount('${id}')" ${!canConnect ? 'disabled' : ''}>
+          ${canConnect ? 'Conectar' : isLoading ? 'Conectando...' : 'Conectado'}
+        </button>
+        <button class="btn-reset" onclick="resetAccount('${id}')">Resetar sessao</button>
+      </div>`;
+      }).join('');
+    }
 
-function renderChatList(chats) {
-  const list = document.getElementById('chat-list');
-  if (!chats.length) { list.innerHTML = '<p class="empty-list">Nenhuma conversa</p>'; return; }
+    async function initAccount(id) {
+      await fetch(`/initialize/${id}`, { method: 'POST' });
+    }
 
-  list.innerHTML = chats.map(c => {
-    const preview = c.lastMessage
-      ? (c.lastMessage.fromMe ? '<span style="color:var(--accent)">Voce: </span>' : '') + escapeHtml(c.lastMessage.body || 'Midia')
-      : '';
-    const url = avatarCache[c.id];
-    const img = url ? `<img src="${url}" onerror="this.style.display='none'"/>` : '';
-    // Usa id CSS-safe para o avatar
-    const safeId = getSafeId(c.id);
-    return `
-      <div class="chat-item${activeChat?.id === c.id ? ' active' : ''}" onclick="openChat('${c.id.replace(/'/g,"\\'")}')">
-        <div class="avatar" id="${safeId}" style="background:${avatarColor(c.name)}">${img}${url ? '' : initials(c.name)}</div>
+    async function resetAccount(id) {
+      if (!confirm(`Resetar sessao de ${id}? Precisara escanear o QR novamente.`)) return;
+      await fetch(`/reset/${id}`, { method: 'POST' });
+    }
+
+    // ── Account tabs ──────────────────────────────────────────────────────────────
+    function renderAccTabs() {
+      const tabs = document.getElementById('acc-tabs');
+      const connected = Object.entries(accountStates).filter(([, s]) => s.ready);
+      if (connected.length <= 1) { tabs.innerHTML = ''; return; }
+
+      tabs.innerHTML = `<div class="acc-tab ${activeFilter === 'all' ? 'active' : ''}" onclick="setAccFilter('all')">Todos</div>` +
+        connected.map(([id]) =>
+          `<div class="acc-tab ${activeFilter === id ? 'active' : ''}" onclick="setAccFilter('${id}')">
+        <span class="tab-dot" style="background:${accColor(id)}"></span>${id}
+      </div>`
+        ).join('');
+    }
+
+    function setAccFilter(id) {
+      activeFilter = id;
+      renderAccTabs();
+      updateAccountBar();
+      renderChatList();
+    }
+
+    // ── Load chats ────────────────────────────────────────────────────────────────
+    let chatsLoading = false;
+    async function loadChats() {
+      if (chatsLoading) return;
+      chatsLoading = true;
+      document.getElementById('chat-list').innerHTML = '<div class="spinner"></div>';
+      try {
+        const r = await fetch('/chats');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        allChats = await r.json();
+        renderChatList();
+        loadAvatarsBatch(allChats);
+      } catch (e) {
+        document.getElementById('chat-list').innerHTML = '<p class="empty-list">Erro: ' + e.message + '</p>';
+      } finally { chatsLoading = false; }
+    }
+
+    function renderChatList() {
+      const q = document.getElementById('search-input')?.value?.toLowerCase() || '';
+      const list = document.getElementById('chat-list');
+
+      let chats = allChats;
+      if (activeFilter !== 'all') chats = chats.filter(c => c.accountId === activeFilter);
+      if (q) chats = chats.filter(c => (c.name || '').toLowerCase().includes(q));
+
+      if (!chats.length) { list.innerHTML = '<p class="empty-list">Nenhuma conversa</p>'; return; }
+
+      list.innerHTML = chats.map(c => {
+        const url = avatarCache[c.id] || null;
+        const img = url ? `<img src="${url}" onerror="this.style.display='none'"/>` : '';
+        const badge = Object.keys(accountStates).length > 1
+          ? `<div class="acc-badge" style="background:${accColor(c.accountId)}">${c.accountId.replace('acc', '')}</div>` : '';
+        const preview = c.lastMessage
+          ? (c.lastMessage.fromMe ? '<span style="color:var(--accent)">Voce: </span>' : '') + esc(c.lastMessage.body || 'Midia')
+          : '';
+        const safeId = c.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+        return `
+      <div class="chat-item${activeChat?.id === c.id ? ' active' : ''}" onclick="openChat(${JSON.stringify(c.id)})">
+        <div class="avatar" id="av-${safeId}" style="background:${avatarColor(c.name)}">${img}${initials(c.name)}${badge}</div>
         <div class="chat-info">
           <div class="chat-row1">
-            <span class="chat-name">${escapeHtml(c.name || c.id)}</span>
+            <span class="chat-name">${esc(c.name || c.id)}</span>
             <span class="chat-time">${formatTime(c.lastMessage?.timestamp)}</span>
           </div>
           <div class="chat-row2">
-            <span class="chat-preview"><span class="account-badge">${c.accountId === 'acc1' ? 'Conta 1' : 'Conta 2'}</span> ${preview}</span>
+            <span class="chat-preview">${preview}</span>
             ${c.unreadCount > 0 ? `<span class="unread-badge">${c.unreadCount}</span>` : ''}
           </div>
         </div>
       </div>`;
-  }).join('');
-}
+      }).join('');
+    }
 
-function filterChats(q) {
-  const filtered = q
-    ? allChats.filter(c => (c.name||'').toLowerCase().includes(q.toLowerCase()))
-    : allChats;
-  renderChatList(filtered);
-}
+    function filterChats(q) { renderChatList(); }
 
-// ── Open chat ─────────────────────────────────────────────────────────────────
+    // ── Avatares em lotes ─────────────────────────────────────────────────────────
+    async function loadAvatarsBatch(chats) {
+      const batch = 5;
+      for (let i = 0; i < chats.length; i += batch) {
+        await Promise.all(chats.slice(i, i + batch).map(async c => {
+          if (avatarCache[c.id] !== undefined) return;
+          try {
+            const r = await fetch('/avatar/' + encodeURIComponent(c.id));
+            const d = await r.json();
+            avatarCache[c.id] = d.url || null;
+            if (d.url) {
+              const safeId = c.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+              const el = document.getElementById('av-' + safeId);
+              if (el) { el.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>${initials(c.name)}`; }
+            }
+          } catch (_) { avatarCache[c.id] = null; }
+        }));
+        await new Promise(r => setTimeout(r, 120));
+      }
+    }
 
-async function openChat(chatId) {
-  activeChat = allChats.find(c => c.id === chatId);
-  if (!activeChat) return;
+    // ── Open chat ─────────────────────────────────────────────────────────────────
+    async function openChat(chatId) {
+      activeChat = allChats.find(c => c.id === chatId);
+      if (!activeChat) return;
+      renderChatList();
 
-  document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
-  // Reativa item correto
-  renderChatList(allChats);
+      const area = document.getElementById('chat-area');
+      const url = avatarCache[chatId] || null;
 
-  const area = document.getElementById('chat-area');
-  const url  = avatarCache[chatId] || null;
+      ['welcome-screen', 'chat-header', 'messages-area', 'input-area'].forEach(id => {
+        document.getElementById(id)?.remove();
+      });
 
-  // Remove welcome screen se existir
-  const welcome = document.getElementById('welcome-screen');
-  if (welcome) welcome.remove();
+      const header = document.createElement('div');
+      header.id = 'chat-header';
+      header.onclick = () => openContactPanel(chatId);
+      header.innerHTML = `
+    ${avatarEl(activeChat.name, url, '', activeChat.accountId)}
+    <div id="header-info">
+      <div id="header-name">${esc(activeChat.name || chatId)}</div>
+      <div id="header-sub">${activeChat.accountId} &middot; clique para informacoes</div>
+    </div>`;
+      area.insertBefore(header, document.getElementById('contact-panel'));
 
-  // Remove header/messages/input antigos
-  ['chat-header','messages-area','input-area'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.remove();
-  });
+      const msgArea = document.createElement('div');
+      msgArea.id = 'messages-area';
+      msgArea.innerHTML = '<div class="spinner"></div>';
+      area.insertBefore(msgArea, document.getElementById('contact-panel'));
 
-  // Insere header
-  const header = document.createElement('div');
-  header.id = 'chat-header';
-  header.innerHTML = `
-    <div style="display:flex; align-items:center; gap:12px; flex:1" onclick="openContactPanel('${chatId.replace(/'/g,"\\'")}')">
-        ${renderAvatar(activeChat.name, url)}
-        <div id="header-info">
-          <div id="header-name">${escapeHtml(activeChat.name || chatId)}</div>
-          <div id="header-status">clique para ver informacoes</div>
-        </div>
-    </div>
-    <button class="close-chat-btn" onclick="closeChat()" title="Sair da conversa">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-    </button>`;
-  area.insertBefore(header, document.getElementById('contact-panel'));
-
-  // Insere area de mensagens
-  const msgArea = document.createElement('div');
-  msgArea.id = 'messages-area';
-  msgArea.innerHTML = '<div class="loading-spinner"></div>';
-  area.insertBefore(msgArea, document.getElementById('contact-panel'));
-
-  // Insere input
-  const inputArea = document.createElement('div');
-  inputArea.id = 'input-area';
-  inputArea.innerHTML = `
+      const inputArea = document.createElement('div');
+      inputArea.id = 'input-area';
+      inputArea.innerHTML = `
     <textarea id="msg-input" rows="1" placeholder="Digite uma mensagem"
       oninput="autoResize(this)" onkeydown="handleKey(event)"></textarea>
     <button id="send-btn" onclick="sendMessage()">
@@ -616,186 +1224,153 @@ async function openChat(chatId) {
         <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>`;
-  area.insertBefore(inputArea, document.getElementById('contact-panel'));
+      area.insertBefore(inputArea, document.getElementById('contact-panel'));
 
-  await loadMessages(chatId);
-  document.getElementById('msg-input')?.focus();
-}
+      await loadMessages(chatId);
+      document.getElementById('msg-input')?.focus();
+    }
 
-async function loadMessages(chatId) {
-  const area = document.getElementById('messages-area');
-  if (!area) return;
-  try {
-    const r = await fetch('/messages/' + encodeURIComponent(chatId));
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const msgs = await r.json();
-    area.innerHTML = '';
-    let lastDay = null;
-    msgs.forEach(m => {
-      const day = m.timestamp ? new Date(m.timestamp * 1000).toDateString() : null;
-      if (day && day !== lastDay) {
-        lastDay = day;
-        const div = document.createElement('div');
-        div.className = 'msg-day-divider';
-        div.innerHTML = '<span>' + formatDayLabel(m.timestamp) + '</span>';
-        area.appendChild(div);
+    async function loadMessages(chatId) {
+      const area = document.getElementById('messages-area');
+      if (!area) return;
+      try {
+        const r = await fetch('/messages/' + encodeURIComponent(chatId));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const msgs = await r.json();
+        area.innerHTML = '';
+        let lastDay = null;
+        msgs.forEach(m => {
+          const day = m.timestamp ? new Date(m.timestamp * 1000).toDateString() : null;
+          if (day && day !== lastDay) {
+            lastDay = day;
+            const d = document.createElement('div');
+            d.className = 'msg-day-divider';
+            d.innerHTML = '<span>' + formatDay(m.timestamp) + '</span>';
+            area.appendChild(d);
+          }
+          appendMessage(m, area);
+        });
+        scrollBottom();
+      } catch (e) {
+        if (area) area.innerHTML = '<p class="empty-list">Erro ao carregar mensagens</p>';
       }
-      appendMessage(m, area);
-    });
-    scrollToBottom();
-  } catch (e) {
-    if (area) area.innerHTML = '<p class="empty-list">Erro ao carregar mensagens</p>';
-  }
-}
+    }
 
-function appendMessage(msg, container) {
-  const area = container || document.getElementById('messages-area');
-  if (!area) return;
-  const div = document.createElement('div');
-  div.className = 'msg-bubble ' + (msg.fromMe ? 'out' : 'in');
-  if (msg.id) div.id = 'msg-' + msg.id;
-  const time = msg.timestamp
-    ? new Date(msg.timestamp * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    : '';
-  div.innerHTML = `
-    <span>${escapeHtml(msg.body)}</span>
+    function appendMessage(msg, container) {
+      const area = container || document.getElementById('messages-area');
+      if (!area) return;
+      const div = document.createElement('div');
+      div.className = 'msg-bubble ' + (msg.fromMe ? 'out' : 'in');
+      if (msg.id) div.id = 'msg-' + msg.id;
+      const time = msg.timestamp
+        ? new Date(msg.timestamp * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+      div.innerHTML = `
+    <span>${esc(msg.body)}</span>
     <div class="msg-meta">
       <span class="msg-time">${time}</span>
-      ${msg.fromMe ? tickIcon(msg.ack) : ''}
+      ${msg.fromMe ? tick(msg.ack) : ''}
     </div>`;
-  area.appendChild(div);
-}
+      area.appendChild(div);
+    }
 
-function scrollToBottom() {
-  const area = document.getElementById('messages-area');
-  if (area) area.scrollTop = area.scrollHeight;
-}
+    function scrollBottom() {
+      const a = document.getElementById('messages-area');
+      if (a) a.scrollTop = a.scrollHeight;
+    }
 
-// ── Contact panel ─────────────────────────────────────────────────────────────
+    // ── Contact panel ─────────────────────────────────────────────────────────────
+    async function openContactPanel(chatId) {
+      const panel = document.getElementById('contact-panel');
+      const body = document.getElementById('cp-body');
+      panel.classList.add('open');
+      body.innerHTML = '<div class="spinner"></div>';
 
-async function openContactPanel(chatId) {
-  const panel = document.getElementById('contact-panel');
-  const body  = document.getElementById('contact-panel-body');
-  panel.classList.add('open');
-  body.innerHTML = '<div class="loading-spinner"></div>';
+      const chat = allChats.find(c => c.id === chatId);
+      const url = avatarCache[chatId] || null;
 
-  const chat = allChats.find(c => c.id === chatId);
-  const url  = avatarCache[chatId] || null;
+      let contact = contactCache[chatId];
+      if (!contact) {
+        try {
+          const r = await fetch('/contact/' + encodeURIComponent(chatId));
+          contact = await r.json();
+          contactCache[chatId] = contact;
+        } catch (_) { }
+      }
 
-  // Busca info do contato
-  const contact = await loadContactInfo(chatId);
-  const name    = contact?.name || chat?.name || chatId;
-  const number  = contact?.number || chatId.replace('@c.us','');
-  const pushname = contact?.pushname || '';
+      const name = contact?.name || chat?.name || chatId;
+      const number = contact?.number || chatId.split(':').pop().split('@')[0];
+      const about = contact?.about || '';
+      const accId = chat?.accountId || '';
 
-  body.innerHTML = `
-    <div class="contact-cover">
-      ${renderAvatar(name, url, 'lg')}
-      <h2>${escapeHtml(name)}</h2>
-      <p>+${number}</p>
+      body.innerHTML = `
+    <div class="cp-cover">
+      ${avatarEl(name, url, 'lg')}
+      <h2>${esc(name)}</h2>
+      <p>+${esc(number)}</p>
     </div>
-    <div class="contact-section">
+    <div class="cp-section">
       <h4>Informacoes</h4>
-      <div class="contact-field">
-        <label>Numero</label>
-        <span>+${escapeHtml(number)}</span>
-      </div>
-      ${pushname ? `
-      <div class="contact-field">
-        <label>Nome no WhatsApp</label>
-        <span>${escapeHtml(pushname)}</span>
-      </div>` : ''}
-      <div class="contact-field">
-        <label>Tipo</label>
-        <span>${chat?.isGroup ? 'Grupo' : 'Contato'}</span>
-      </div>
-      ${contact?.about ? `
-      <div class="contact-field">
-        <label>Recado</label>
-        <span>${escapeHtml(contact.about)}</span>
-      </div>` : ''}
+      <div class="cp-field"><label>Numero</label><span>+${esc(number)}</span></div>
+      ${contact?.pushname ? `<div class="cp-field"><label>Nome no WhatsApp</label><span>${esc(contact.pushname)}</span></div>` : ''}
+      ${about ? `<div class="cp-field"><label>Recado</label><span>${esc(about)}</span></div>` : ''}
+      <div class="cp-field"><label>Conta</label><span>${esc(accId)}</span></div>
+      <div class="cp-field"><label>Tipo</label><span>${chat?.isGroup ? 'Grupo' : 'Contato'}</span></div>
     </div>`;
 
-  // Atualiza avatar grande se ainda nao carregou
-  if (!url) {
-    fetch('/avatar/' + encodeURIComponent(chatId))
-      .then(r => r.json())
-      .then(d => {
-        if (d.url) {
-          avatarCache[chatId] = d.url;
-          const avs = body.querySelectorAll('.avatar');
-          avs.forEach(av => {
-            av.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>`;
-          });
-        }
-      }).catch(() => {});
-  }
-}
+      if (!url) {
+        fetch('/avatar/' + encodeURIComponent(chatId)).then(r => r.json()).then(d => {
+          if (d.url) {
+            avatarCache[chatId] = d.url;
+            body.querySelectorAll('.avatar').forEach(av => {
+              av.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>${initials(name)}`;
+            });
+          }
+        }).catch(() => { });
+      }
+    }
 
-function closeContactPanel() {
-  document.getElementById('contact-panel').classList.remove('open');
-}
+    function closeContactPanel() {
+      document.getElementById('contact-panel').classList.remove('open');
+    }
 
-// ── Send message ──────────────────────────────────────────────────────────────
+    // ── Send ──────────────────────────────────────────────────────────────────────
+    async function sendMessage() {
+      if (!activeChat) return;
+      const input = document.getElementById('msg-input');
+      const body = input.value.trim();
+      if (!body) return;
+      input.value = ''; autoResize(input);
+      const btn = document.getElementById('send-btn');
+      btn.disabled = true;
+      try {
+        await fetch('/send', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: activeChat.id, body })
+        });
+      } catch (e) { console.error(e); }
+      finally { btn.disabled = false; input.focus(); }
+    }
 
-async function sendMessage() {
-  if (!activeChat) return;
-  const input = document.getElementById('msg-input');
-  const body  = input.value.trim();
-  if (!body) return;
-  input.value = '';
-  autoResize(input);
-  const btn = document.getElementById('send-btn');
-  btn.disabled = true;
-  try {
-    await fetch('/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: activeChat.id, body })
-    });
-  } catch (e) {
-    console.error(e);
-    alert('Erro ao enviar mensagem. Verifique a conexão.');
-  }
-  finally { btn.disabled = false; input.focus(); }
-}
+    function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+    function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
 
-function closeChat() {
-  activeChat = null;
-  document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
-  
-  const area = document.getElementById('chat-area');
-  
-  // Remove header/messages/input
-  ['chat-header','messages-area','input-area'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.remove();
-  });
-  
-  closeContactPanel();
-  
-  // Restaura welcome screen
-  if (!document.getElementById('welcome-screen')) {
-    const welcome = document.createElement('div');
-    welcome.id = 'welcome-screen';
-    welcome.innerHTML = `
-      <svg width="180" height="180" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#00a884"/>
-      </svg>
-      <h3>WhatsApp Web</h3>
-      <p>Selecione uma conversa para começar</p>`;
-    area.insertBefore(welcome, document.getElementById('contact-panel'));
-  }
-}
-
-function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-}
-
-function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-}
-</script>
+    // ── Init ──────────────────────────────────────────────────────────────────────
+    // Busca status inicial via REST (caso socket demore)
+    fetch('/status').then(r => r.json()).then(states => {
+      Object.entries(states).forEach(([id, s]) => {
+        accountStates[id] = s;
+      });
+      updateAccountBar();
+      updateSetupCards();
+      const anyConnected = Object.values(accountStates).some(s => s.ready);
+      if (anyConnected) {
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('main').classList.add('visible');
+        loadChats();
+        renderAccTabs();
+      }
+    }).catch(() => { });
+  </script>
 </body>
+
 </html>
