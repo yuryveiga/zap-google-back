@@ -22,7 +22,7 @@ const clients = {};
 const clientStates = {};
 
 ACCOUNTS.forEach(id => {
-  clientStates[id] = { status: 'disconnected', qr: null, ready: false };
+  clientStates[id] = { status: 'disconnected', qr: null, ready: false, name: null };
 
   clients[id] = new Client({
     authStrategy: new LocalAuth({ clientId: id }),
@@ -32,14 +32,14 @@ ACCOUNTS.forEach(id => {
   clients[id].on('qr', async (qr) => {
     clientStates[id].qr = await qrcode.toDataURL(qr);
     clientStates[id].status = 'qr';
-    io.emit('status_update', { accountId: id, ...clientStates[id] });
+    io.emit('status_update', { accountId: id, name: clientStates[id].name, ...clientStates[id] });
   });
 
   clients[id].on('ready', () => {
     clientStates[id].ready = true;
     clientStates[id].status = 'connected';
     clientStates[id].qr = null;
-    io.emit('status_update', { accountId: id, ...clientStates[id] });
+    io.emit('status_update', { accountId: id, name: clientStates[id].name, ...clientStates[id] });
   });
 });
 
@@ -71,12 +71,32 @@ app.get('/chats', async (req, res) => {
 });
 
 app.post('/init-instance', (req, res) => {
-  const { id } = req.body;
+  const { id, name } = req.body;
   if (clients[id]) {
-    clients[id].initialize().catch(() => { });
+    if (name) clientStates[id].name = name;
+    clientStates[id].status = 'starting';
+    io.emit('status_update', { accountId: id, name: clientStates[id].name, ...clientStates[id] });
+    clients[id].initialize().catch(err => {
+      console.error(`[${id}] Erro ao inicializar:`, err.message);
+      clientStates[id].status = 'disconnected';
+      io.emit('status_update', { accountId: id, name: clientStates[id].name, ...clientStates[id] });
+    });
     res.json({ success: true });
   } else {
-    res.status(404).send();
+    res.status(404).json({ error: 'ID nao encontrado. Use: ' + ACCOUNTS.join(', ') });
+  }
+});
+
+app.post('/reset/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!clients[id]) return res.status(404).json({ error: 'ID nao encontrado' });
+  try {
+    await clients[id].destroy().catch(() => {});
+    clientStates[id] = { status: 'disconnected', qr: null, ready: false, name: null };
+    io.emit('status_update', { accountId: id, ...clientStates[id] });
+    res.json({ ok: true });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
