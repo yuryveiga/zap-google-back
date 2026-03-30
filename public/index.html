@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
   <meta charset="UTF-8">
   <title>WhatsApp Manager</title>
@@ -9,490 +10,226 @@
       --bg: #111b21;
       --sidebar: #202c33;
       --accent: #00a884;
-      --accent-dim: #00896c;
       --text: #e9edef;
-      --text-sec: #8696a0;
-      --border: #333;
-      --hover: #2a3942;
     }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body, html {
-      height: 100%; font-family: 'Segoe UI', sans-serif;
-      background: var(--bg); color: var(--text);
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
     }
 
-    /* ── Layout principal ── */
-    #app-container { display: flex; height: 100vh; width: 100vw; }
+    /* Estrutura Principal */
+    #app-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
 
     #sidebar {
-      width: 350px; border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; position: relative;
-      background: var(--sidebar);
-    }
-
-    #sidebar-header {
-      padding: 16px; font-size: 17px; font-weight: 600;
-      background: #1f2c33; border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: space-between;
+      width: 350px;
+      border-right: 1px solid #333;
+      display: flex;
+      flex-direction: column;
+      position: relative;
     }
 
     #main-content {
-      flex: 1; display: flex; align-items: center; justify-content: center;
-      background: #0b141a; flex-direction: column; gap: 12px;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0b141a;
     }
 
-    #main-content svg { opacity: .08; }
-    #main-content p { color: var(--text-sec); font-size: 14px; }
-
-    /* ── Chat list ── */
-    #chat-list { flex: 1; overflow-y: auto; }
-    #chat-list::-webkit-scrollbar { width: 5px; }
-    #chat-list::-webkit-scrollbar-thumb { background: #2a3942; border-radius: 3px; }
-
+    /* Estilo dos Chats */
     .chat-item {
-      padding: 14px 16px; border-bottom: 1px solid #1f2c33;
-      cursor: pointer; display: flex; align-items: center; gap: 12px;
-      transition: background .15s;
+      padding: 15px;
+      border-bottom: 1px solid #222;
+      cursor: pointer;
     }
-    .chat-item:hover { background: var(--hover); }
-    .chat-avatar {
-      width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 17px; font-weight: 600; color: #fff;
-    }
-    .chat-name { font-size: 15px; font-weight: 500; }
-    .chat-acc  { font-size: 12px; color: var(--text-sec); margin-top: 2px; }
 
-    /* ── Botão de configuração ── */
+    .chat-item:hover {
+      background: #2a3942;
+    }
+
+    /* Botão de Configuração no Canto Inferior */
     #settings-trigger {
-      position: absolute; bottom: 15px; left: 15px;
-      background: #2a3942; border: none; color: white;
-      width: 42px; height: 42px; border-radius: 50%; cursor: pointer;
-      font-size: 20px; display: flex; align-items: center; justify-content: center;
-      transition: background .15s;
+      position: absolute;
+      bottom: 15px;
+      left: 15px;
+      background: #2a3942;
+      border: none;
+      color: white;
+      padding: 10px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
     }
-    #settings-trigger:hover { background: #3a4952; }
 
-    /* ── Página de Conexões (overlay) ── */
+    /* Aba de Conexões (Overlay) */
     #connections-page {
-      position: fixed; inset: 0; background: var(--bg);
-      display: none; flex-direction: column; z-index: 100;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      display: none;
+      flex-direction: column;
+      z-index: 100;
     }
-    #connections-page.visible { display: flex; }
 
     .conn-header {
-      padding: 18px 24px; display: flex; align-items: center; gap: 16px;
-      border-bottom: 1px solid var(--border); background: #1f2c33;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #333;
     }
-    .conn-header h2 { font-size: 18px; font-weight: 600; flex: 1; }
 
-    .btn-add {
-      background: var(--accent); color: white; border: none;
-      padding: 10px 20px; border-radius: 8px; cursor: pointer;
-      font-weight: 600; font-size: 14px; display: flex; align-items: center;
-      gap: 8px; transition: background .15s;
-    }
-    .btn-add:hover { background: var(--accent-dim); }
-
-    .btn-close {
-      background: none; border: none; color: var(--text-sec);
-      cursor: pointer; font-size: 22px; line-height: 1; padding: 4px;
-      transition: color .15s;
-    }
-    .btn-close:hover { color: var(--text); }
-
-    /* ── Slots ── */
     .slots-container {
-      display: flex; gap: 20px; padding: 32px 40px;
-      flex-wrap: wrap; overflow-y: auto; align-content: flex-start;
+      display: flex;
+      gap: 20px;
+      padding: 40px;
+      justify-content: center;
     }
 
     .slot {
-      width: 260px; min-height: 300px; border: 2px dashed #444;
-      border-radius: 16px; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 16px;
-      padding: 24px; transition: all .2s;
-    }
-    .slot.has-account {
-      border-style: solid; border-color: #2a3942; background: #1f2c33;
-      justify-content: flex-start;
-    }
-    .slot.connected { border-color: var(--accent); }
-    .slot.pending   { border-color: #f0ad4e; }
-
-    .slot-empty-icon {
-      width: 60px; height: 60px; border-radius: 50%; background: #2a3942;
-      display: flex; align-items: center; justify-content: center; font-size: 26px;
-    }
-    .slot-empty-label { font-size: 14px; color: var(--text-sec); text-align: center; }
-
-    /* Slot com conta */
-    .slot-header {
-      display: flex; align-items: center; gap: 10px; width: 100%; margin-bottom: 4px;
-    }
-    .slot-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-    .slot-name { font-size: 15px; font-weight: 600; flex: 1; }
-    .slot-badge {
-      font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
-    }
-    .slot-badge.connected  { background: rgba(0,168,132,.15); color: var(--accent); }
-    .slot-badge.pending    { background: rgba(240,173,78,.15); color: #f0ad4e; }
-    .slot-badge.loading, .slot-badge.initializing, .slot-badge.starting, .slot-badge.authenticated
-      { background: rgba(91,192,222,.15); color: #5bc0de; }
-    .slot-badge.disconnected { background: rgba(217,83,79,.15); color: #d9534f; }
-
-    .qr-box {
-      width: 180px; height: 180px; background: white; padding: 6px;
-      border-radius: 8px; display: flex; align-items: center; justify-content: center;
-      margin: 8px auto;
-    }
-    .qr-box img { width: 100%; height: 100%; }
-
-    .qr-placeholder {
-      width: 180px; height: 180px; background: #2a3942; border-radius: 8px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 10px; color: var(--text-sec); font-size: 13px; text-align: center;
-      padding: 16px; margin: 8px auto;
+      width: 250px;
+      height: 300px;
+      border: 2px dashed #444;
+      border-radius: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
 
-    .slot-connected-icon {
-      font-size: 48px; color: var(--accent); text-align: center; margin: 16px auto;
+    .slot.active {
+      border-style: solid;
+      border-color: var(--accent);
+      background: #1f2c33;
     }
-    .slot-info { font-size: 13px; color: var(--text-sec); text-align: center; line-height: 1.5; }
 
-    .loading-bar { width: 100%; height: 4px; background: #2a3942; border-radius: 2px; overflow: hidden; margin: 4px 0; }
-    .loading-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .5s; }
+    .qr-box img {
+      width: 180px;
+      height: 180px;
+      background: white;
+      padding: 5px;
+    }
 
-    .btn-reset {
-      background: transparent; color: #d9534f; border: 1px solid #d9534f;
-      border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer;
-      transition: all .15s; margin-top: auto; width: 100%;
+    .btn-add {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
     }
-    .btn-reset:hover { background: #d9534f; color: #fff; }
-
-    /* ── Modal ── */
-    .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,.7);
-      z-index: 200; display: none; align-items: center; justify-content: center;
-    }
-    .modal-overlay.active { display: flex; }
-    .modal {
-      background: #1f2c33; border-radius: 16px; padding: 28px;
-      width: 380px; box-shadow: 0 8px 32px rgba(0,0,0,.5);
-      border: 1px solid #333;
-    }
-    .modal h3 { font-size: 18px; margin-bottom: 8px; }
-    .modal p  { font-size: 13px; color: var(--text-sec); margin-bottom: 16px; }
-    .modal input {
-      width: 100%; background: #2a3942; border: 1px solid #333;
-      border-radius: 8px; padding: 12px; color: var(--text);
-      font-family: inherit; font-size: 14px; outline: none; margin-bottom: 20px;
-    }
-    .modal input:focus { border-color: var(--accent); }
-    .modal-btns { display: flex; justify-content: flex-end; gap: 12px; }
-    .btn-cancel { background: transparent; border: none; color: var(--text-sec); cursor: pointer; padding: 8px 16px; font-size: 14px; }
-    .btn-ok {
-      background: var(--accent); color: #fff; border: none;
-      border-radius: 8px; padding: 8px 24px; cursor: pointer; font-weight: 600; font-size: 14px;
-    }
-    .btn-ok:hover { background: var(--accent-dim); }
-
-    /* Utilitários */
-    .spinner {
-      width: 24px; height: 24px; border: 3px solid #333;
-      border-top-color: var(--accent); border-radius: 50%;
-      animation: spin .7s linear infinite; margin: 0 auto;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .status-dot {
-      width: 8px; height: 8px; border-radius: 50%; background: var(--text-sec);
-      display: inline-block; margin-right: 6px; animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
   </style>
 </head>
+
 <body>
 
-<div id="app-container">
+  <div id="app-container">
+    <div id="sidebar">
+      <div style="padding: 15px; background: var(--sidebar); font-weight: bold;">Conversas</div>
+      <div id="chat-list" style="flex:1; overflow-y:auto;">
+        <p style="text-align:center; color:#8696a0; margin-top:20px;">Nenhuma conversa carregada.</p>
+      </div>
 
-  <!-- Sidebar -->
-  <div id="sidebar">
-    <div id="sidebar-header">
-      <span>Conversas</span>
+      <button id="settings-trigger" onclick="toggleConnections(true)">⚙️</button>
     </div>
-    <div id="chat-list">
-      <p style="text-align:center;color:var(--text-sec);margin-top:30px;font-size:14px">Nenhuma conversa carregada.</p>
-    </div>
-    <button id="settings-trigger" onclick="openConnections()" title="Conexoes">&#9881;</button>
-  </div>
 
-  <!-- Main content -->
-  <div id="main-content">
-    <svg width="120" height="120" viewBox="0 0 24 24" fill="none">
-      <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#00a884"/>
-    </svg>
-    <p>Selecione um chat ou conecte uma conta em Conexoes</p>
-  </div>
-
-</div>
-
-<!-- Página de Conexões -->
-<div id="connections-page">
-  <div class="conn-header">
-    <h2>Conexoes</h2>
-    <button class="btn-add" onclick="openAddModal()">+ Adicionar WhatsApp</button>
-    <button class="btn-close" onclick="closeConnections()">&#x2715;</button>
-  </div>
-  <div class="slots-container" id="slots-container"></div>
-</div>
-
-<!-- Modal -->
-<div class="modal-overlay" id="modal-add">
-  <div class="modal">
-    <h3>Nova Conexao</h3>
-    <p>Insira um nome para identificar esta conta.</p>
-    <input type="text" id="new-acc-name" placeholder="Ex: WhatsApp Empresa" maxlength="30"
-      onkeydown="if(event.key==='Enter') confirmAdd()"/>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
-      <button class="btn-ok" onclick="confirmAdd()">Conectar</button>
+    <div id="main-content">
+      <p style="color: #8696a0;">Selecione um chat ou abra as configurações para conectar.</p>
     </div>
   </div>
-</div>
 
-<script>
-const socket = io();
+  <div id="connections-page">
+    <div class="conn-header">
+      <h2>Conexões</h2>
+      <button class="btn-add" onclick="addNewInstance()">+ Adicionar WhatsApp</button>
+      <button onclick="toggleConnections(false)"
+        style="background:none; border:none; color:white; cursor:pointer; font-size:24px;">✕</button>
+    </div>
 
-let accountStates = {};  // { CONTA_01: { status, qr, ready, name }, ... }
-let slots = [];           // ordem dos slots adicionados ex: ['CONTA_01']
-const MAX_SLOTS = 2;
-const SLOT_IDS = ['CONTA_01', 'CONTA_02'];
+    <div class="slots-container">
+      <div id="slot-CONTA_01" class="slot">
+        <p style="color:#666">Slot 1 vazio</p>
+      </div>
+      <div id="slot-CONTA_02" class="slot">
+        <p style="color:#666">Slot 2 vazio</p>
+      </div>
+    </div>
+  </div>
 
-const COLORS = ['#00a884','#3498db','#9b59b6','#e74c3c','#e67e22','#1abc9c'];
-function slotColor(index) { return COLORS[index % COLORS.length]; }
+  <script>
+    const socket = io();
+    let accountStates = {};
 
-function esc(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function initials(name) {
-  if (!name) return '?';
-  return name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
-}
-const AV_COLORS = ['#e74c3c','#e67e22','#2ecc71','#3498db','#9b59b6','#1abc9c'];
-function avatarColor(name) { let h=0; for(let i=0;i<(name||'').length;i++) h+=name.charCodeAt(i); return AV_COLORS[h%AV_COLORS.length]; }
-
-// ── Conexões page ─────────────────────────────────────────────────────────────
-function openConnections() {
-  document.getElementById('connections-page').classList.add('visible');
-  renderSlots();
-}
-function closeConnections() {
-  document.getElementById('connections-page').classList.remove('visible');
-}
-
-// ── Slots ─────────────────────────────────────────────────────────────────────
-function renderSlots() {
-  const container = document.getElementById('slots-container');
-
-  // Constrói lista de slots a exibir: contas já conhecidas + 1 slot vazio se não atingiu o max
-  const knownIds = Object.keys(accountStates).filter(id => accountStates[id].name);
-  const displaySlots = [...knownIds];
-
-  // Adiciona 1 slot vazio se ainda tiver espaço e nenhum vazio já estiver na lista
-  if (displaySlots.length < MAX_SLOTS) {
-    // Próximo ID disponível que ainda não foi usado
-    const nextId = SLOT_IDS.find(id => !knownIds.includes(id));
-    if (nextId) displaySlots.push('__empty__' + nextId);
-  }
-
-  container.innerHTML = displaySlots.map((id, idx) => {
-    if (id.startsWith('__empty__')) {
-      const realId = id.replace('__empty__', '');
-      return `
-        <div class="slot" id="slot-${realId}">
-          <div class="slot-empty-icon">&#128247;</div>
-          <p class="slot-empty-label">Nenhuma conta<br/>conectada aqui</p>
-          <button class="btn-add" onclick="openAddModal('${realId}')" style="margin-top:8px">
-            + Adicionar WhatsApp
-          </button>
-        </div>`;
+    function toggleConnections(show) {
+      document.getElementById('connections-page').style.display = show ? 'flex' : 'none';
     }
 
-    const s = accountStates[id] || {};
-    const color = slotColor(idx);
-    const labels = {
-      starting:'Iniciando...', initializing:'Inicializando...', authenticated:'Autenticando...',
-      loading:`Carregando ${s.loadingPercent||0}%`, pending:'Escaneie o QR Code',
-      connected:'Conectado', disconnected:'Desconectado', qr:'Escaneie o QR Code'
-    };
-    const label = labels[s.status] || s.status || 'Aguardando';
-    const isLoading = ['starting','initializing','loading','authenticated'].includes(s.status);
-    const statusCls = s.status === 'qr' ? 'pending' : (s.status || 'disconnected');
+    socket.on('status_update', (data) => {
+      const { accountId, status, qr, ready } = data;
+      accountStates[accountId] = data;
+      updateSlotUI(accountId);
 
-    let body = '';
-    if (s.qr || s.status === 'qr') {
-      body = `
-        <div class="qr-box"><img src="${s.qr}"/></div>
-        <p class="slot-info">Abra o WhatsApp no celular<br/>Dispositivos conectados → Conectar</p>`;
-    } else if (s.ready || s.status === 'connected') {
-      body = `
-        <div class="slot-connected-icon">&#10003;</div>
-        <p class="slot-info">Conta conectada<br/>e pronta para uso</p>`;
-    } else {
-      body = `
-        <div class="qr-placeholder">
-          ${isLoading ? '<span class="status-dot"></span>' : '&#9679;'} ${label}
-          ${isLoading ? `<div class="loading-bar" style="margin-top:8px"><div class="loading-fill" style="width:${s.loadingPercent||20}%"></div></div>` : ''}
-        </div>`;
-    }
-
-    return `
-      <div class="slot has-account ${statusCls}" id="slot-${id}">
-        <div class="slot-header">
-          <div class="slot-dot" style="background:${color}"></div>
-          <span class="slot-name">${esc(s.name || id)}</span>
-          <span class="slot-badge ${statusCls}">${label}</span>
-        </div>
-        ${body}
-        <button class="btn-reset" onclick="resetSlot('${id}')">&#x21BA; Resetar sessao</button>
-      </div>`;
-  }).join('');
-}
-
-async function resetSlot(id) {
-  if (!confirm(`Resetar a sessao de "${accountStates[id]?.name || id}"? Precisara escanear o QR novamente.`)) return;
-  try {
-    await fetch(`/reset/${id}`, { method: 'POST' });
-  } catch(e) {
-    // Se não houver rota de reset, limpa localmente e reinicializa
-    if (accountStates[id]) accountStates[id] = { ...accountStates[id], status:'disconnected', qr:null, ready:false };
-    renderSlots();
-  }
-}
-
-// ── Modal ─────────────────────────────────────────────────────────────────────
-let _targetSlotId = null;
-
-function openAddModal(slotId) {
-  // Se não passar slotId, pega o próximo disponível
-  if (slotId) {
-    _targetSlotId = slotId;
-  } else {
-    const used = Object.keys(accountStates).filter(id => accountStates[id]?.name);
-    _targetSlotId = SLOT_IDS.find(id => !used.includes(id));
-    if (!_targetSlotId) { alert('Limite de ' + MAX_SLOTS + ' contas atingido.'); return; }
-  }
-  document.getElementById('modal-add').classList.add('active');
-  setTimeout(() => document.getElementById('new-acc-name').focus(), 50);
-}
-
-function closeModal() {
-  document.getElementById('modal-add').classList.remove('active');
-  document.getElementById('new-acc-name').value = '';
-  _targetSlotId = null;
-}
-
-async function confirmAdd() {
-  const name = document.getElementById('new-acc-name').value.trim();
-  if (!name) { document.getElementById('new-acc-name').focus(); return; }
-
-  const id = _targetSlotId;
-  closeModal();
-
-  // Marca o slot como iniciando imediatamente
-  accountStates[id] = { status: 'starting', qr: null, ready: false, name };
-  renderSlots();
-
-  // Chama o backend para inicializar
-  try {
-    await fetch('/init-instance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, name })
+      if (ready) {
+        loadChats();
+      }
     });
-  } catch(e) {
-    console.error('Erro ao inicializar instância:', e);
-  }
-}
 
-// ── Socket ────────────────────────────────────────────────────────────────────
-socket.on('status_update', ({ accountId, status, qr, ready, loadingPercent, name }) => {
-  const existing = accountStates[accountId] || {};
-  accountStates[accountId] = {
-    ...existing,
-    status,
-    qr: qr || null,
-    ready: ready || false,
-    loadingPercent: loadingPercent || 0,
-    name: name || existing.name || accountId,
-  };
+    function updateSlotUI(id) {
+      const slot = document.getElementById(`slot-${id}`);
+      const state = accountStates[id];
 
-  // Atualiza slot se a página de conexões estiver aberta
-  if (document.getElementById('connections-page').classList.contains('visible')) {
-    renderSlots();
-  }
-
-  // Atualiza botão na sidebar se conectou
-  updateSidebarDots();
-
-  if (ready) loadChats();
-});
-
-// ── Sidebar dots ──────────────────────────────────────────────────────────────
-function updateSidebarDots() {
-  // Mostra indicadores de status no header da sidebar
-  const header = document.getElementById('sidebar-header');
-  const dots = Object.entries(accountStates)
-    .filter(([,s]) => s.name)
-    .map(([id, s], i) => {
-      const color = s.ready ? '#00a884' : s.status === 'qr' || s.status === 'pending' ? '#f0ad4e' : '#667781';
-      return `<div title="${esc(s.name||id)}: ${s.status}" style="width:8px;height:8px;border-radius:50%;background:${color}"></div>`;
-    }).join('');
-  header.innerHTML = `<span>Conversas</span><div style="display:flex;gap:5px;align-items:center">${dots}</div>`;
-}
-
-// ── Chats ─────────────────────────────────────────────────────────────────────
-async function loadChats() {
-  try {
-    const res = await fetch('/chats');
-    const chats = await res.json();
-    const list = document.getElementById('chat-list');
-
-    if (!chats.length) {
-      list.innerHTML = '<p style="text-align:center;color:var(--text-sec);margin-top:30px;font-size:14px">Nenhuma conversa.</p>';
-      return;
+      if (state.status === 'qr' && state.qr) {
+        slot.className = "slot active";
+        slot.innerHTML = `<h4>Conectar ${id}</h4><div class="qr-box"><img src="${state.qr}"></div>`;
+      } else if (state.ready) {
+        slot.className = "slot active";
+        slot.innerHTML = `<h4 style="color:var(--accent)">● Conectado</h4><p>${id}</p>`;
+      }
     }
 
-    list.innerHTML = chats.map(c => {
-      const color = avatarColor(c.name);
-      const ini   = initials(c.name);
-      const accDot = `<div style="width:8px;height:8px;border-radius:50%;background:${slotColor(SLOT_IDS.indexOf(c.accountId))};margin-top:3px"></div>`;
-      return `
+    async function addNewInstance() {
+      // Tenta inicializar o primeiro slot disponível
+      const nextId = !accountStates['CONTA_01']?.ready ? 'CONTA_01' : 'CONTA_02';
+      await fetch('/init-instance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: nextId })
+      });
+      alert("Iniciando instância... Aguarde o QR Code aparecer no slot.");
+    }
+
+    async function loadChats() {
+      const res = await fetch('/chats');
+      const chats = await res.json();
+      const list = document.getElementById('chat-list');
+      list.innerHTML = chats.map(c => `
         <div class="chat-item">
-          <div class="chat-avatar" style="background:${color}">${ini}</div>
-          <div style="flex:1;min-width:0">
-            <div class="chat-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</div>
-            <div class="chat-acc">${esc(c.accountId)}</div>
-          </div>
-          ${accDot}
-        </div>`;
-    }).join('');
-  } catch(e) {
-    console.error('Erro ao carregar chats:', e);
-  }
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-fetch('/status').then(r => r.json()).then(states => {
-  // Só importa contas que já têm sessão (status diferente de disconnected)
-  Object.entries(states).forEach(([id, s]) => {
-    if (s.status !== 'disconnected' || s.ready) {
-      accountStates[id] = { ...s, name: s.name || id };
+          <strong>${c.name}</strong><br><small>${c.accountId}</small>
+        </div>
+      `).join('');
     }
-  });
-  updateSidebarDots();
-  if (Object.values(accountStates).some(s => s.ready)) loadChats();
-}).catch(() => {});
-</script>
+
+    // Carregar status inicial
+    fetch('/status').then(r => r.json()).then(s => {
+      accountStates = s;
+      Object.keys(s).forEach(id => updateSlotUI(id));
+      if (Object.values(s).some(acc => acc.ready)) loadChats();
+    });
+  </script>
 </body>
+
 </html>

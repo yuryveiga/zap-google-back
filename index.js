@@ -1,105 +1,216 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
-const http = require('http');
-const { Server } = require('socket.io');
+const cors    = require('cors');
+const http    = require('http');
+const { Server }           = require('socket.io');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
-const path = require('path');
+const path   = require('path');
 
-const app = express();
+const app    = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
-const PORT = process.env.PORT || 3000;
+const io     = new Server(server, { cors: { origin: '*' } });
+const PORT   = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(process.cwd(), 'public')));
 
-// Gerenciamento de instâncias (Máximo 2 conforme sua interface)
-const ACCOUNTS = ['CONTA_01', 'CONTA_02'];
-const clients = {};
-const clientStates = {};
+// ─── Estado ───────────────────────────────────────────────────────────────────
+const SLOTS = ['CONTA_01', 'CONTA_02'];
+const clients      = {};   // id -> Client
+const clientStates = {};   // id -> { status, qr, ready, name }
 
-ACCOUNTS.forEach(id => {
-  clientStates[id] = { status: 'disconnected', qr: null, ready: false, name: null };
+SLOTS.forEach(id => {
+  clientStates[id] = { status: 'empty', qr: null, ready: false, name: null };
+});
 
-  clients[id] = new Client({
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function emit(id) {
+  io.emit('status_update', { accountId: id, ...clientStates[id] });
+}
+
+function createClient(id) {
+  // Destrói instância anterior se existir
+  if (clients[id]) {
+    try { clients[id].destroy(); } catch (_) {}
+    delete clients[id];
+  }
+
+  const client = new Client({
     authStrategy: new LocalAuth({ clientId: id }),
-    puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+    puppeteer: {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+      ],
+    }
   });
 
-  clients[id].on('qr', async (qr) => {
-    clientStates[id].qr = await qrcode.toDataURL(qr);
+  client.on('loading_screen', (percent, msg) => {
+    console.log(`[${id}] ${percent}% - ${msg}`);
+    clientStates[id].status = 'loading';
+    clientStates[id].loadingPercent = percent;
+    emit(id);
+  });
+
+  client.on('authenticated', () => {
+    console.log(`[${id}] Autenticado`);
+    clientStates[id].status = 'authenticated';
+    emit(id);
+  });
+
+  client.on('qr', async (qr) => {
+    console.log(`[${id}] QR gerado`);
+    clientStates[id].qr     = await qrcode.toDataURL(qr);
     clientStates[id].status = 'qr';
-    io.emit('status_update', { accountId: id, name: clientStates[id].name, ...clientStates[id] });
+    emit(id);
   });
 
-  clients[id].on('ready', () => {
-    clientStates[id].ready = true;
+  client.on('ready', () => {
+    console.log(`[${id}] Conectado`);
     clientStates[id].status = 'connected';
-    clientStates[id].qr = null;
-    io.emit('status_update', { accountId: id, name: clientStates[id].name, ...clientStates[id] });
+    clientStates[id].ready  = true;
+    clientStates[id].qr     = null;
+    emit(id);
   });
+
+  client.on('auth_failure', msg => {
+    console.error(`[${id}] Auth failure:`, msg);
+    clientStates[id].status = 'disconnected';
+    clientStates[id].ready  = false;
+    emit(id);
+  });
+
+  client.on('disconnected', reason => {
+    console.log(`[${id}] Desconectado:`, reason);
+    clientStates[id].status = 'disconnected';
+    clientStates[id].ready  = false;
+    clientStates[id].qr     = null;
+    emit(id);
+  });
+
+  clients[id] = client;
+  return client;
+}
+
+// ─── Rotas ────────────────────────────────────────────────────────────────────
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
 });
 
 app.get('/status', (req, res) => res.json(clientStates));
 
-app.get('/chats', async (req, res) => {
-  try {
-    let allChats = [];
-    for (const id of ACCOUNTS) {
-      if (clientStates[id].ready) {
-        let chats = await clients[id].getChats();
-        // Delay de sincronização se necessário
-        if (chats.length === 0) {
-          await new Promise(r => setTimeout(r, 2000));
-          chats = await clients[id].getChats();
-        }
-        const mapped = chats.filter(c => !c.isGroup).slice(0, 40).map(c => ({
-          id: `${id}:${c.id._serialized}`,
-          name: c.name || c.id.user,
-          accountId: id,
-          timestamp: c.timestamp
-        }));
-        allChats = allChats.concat(mapped);
-      }
-    }
-    allChats.sort((a, b) => b.timestamp - a.timestamp);
-    res.json(allChats);
-  } catch (err) { res.status(500).json({ error: 'Erro nos chats' }); }
-});
-
-app.post('/init-instance', (req, res) => {
+// Inicializa uma instância (cria o cliente sob demanda)
+app.post('/init-instance', async (req, res) => {
   const { id, name } = req.body;
-  if (clients[id]) {
-    if (name) clientStates[id].name = name;
-    clientStates[id].status = 'starting';
-    io.emit('status_update', { accountId: id, name: clientStates[id].name, ...clientStates[id] });
-    clients[id].initialize().catch(err => {
-      console.error(`[${id}] Erro ao inicializar:`, err.message);
-      clientStates[id].status = 'disconnected';
-      io.emit('status_update', { accountId: id, name: clientStates[id].name, ...clientStates[id] });
-    });
-    res.json({ success: true });
-  } else {
-    res.status(404).json({ error: 'ID nao encontrado. Use: ' + ACCOUNTS.join(', ') });
+  if (!SLOTS.includes(id)) {
+    return res.status(400).json({ error: 'ID invalido. Use: ' + SLOTS.join(', ') });
   }
+
+  // Salva o nome
+  clientStates[id].name   = name || clientStates[id].name || id;
+  clientStates[id].status = 'starting';
+  clientStates[id].qr     = null;
+  clientStates[id].ready  = false;
+  emit(id);
+
+  // Cria e inicializa o cliente
+  const client = createClient(id);
+  client.initialize().catch(err => {
+    console.error(`[${id}] Erro ao inicializar:`, err.message);
+    clientStates[id].status = 'disconnected';
+    emit(id);
+  });
+
+  res.json({ ok: true });
 });
 
-app.post('/reset/:id', async (req, res) => {
+// Remove uma conexão completamente
+app.post('/remove/:id', async (req, res) => {
   const { id } = req.params;
-  if (!clients[id]) return res.status(404).json({ error: 'ID nao encontrado' });
+  if (!SLOTS.includes(id)) return res.status(400).json({ error: 'ID invalido' });
+
   try {
-    await clients[id].destroy().catch(() => {});
-    clientStates[id] = { status: 'disconnected', qr: null, ready: false, name: null };
-    io.emit('status_update', { accountId: id, ...clientStates[id] });
+    if (clients[id]) {
+      await clients[id].destroy().catch(() => {});
+      delete clients[id];
+    }
+    clientStates[id] = { status: 'empty', qr: null, ready: false, name: null };
+    emit(id);
     res.json({ ok: true });
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Reseta sessão (mantém o nome, gera novo QR)
+app.post('/reset/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!SLOTS.includes(id)) return res.status(400).json({ error: 'ID invalido' });
+
+  const name = clientStates[id].name;
+  try {
+    if (clients[id]) {
+      await clients[id].destroy().catch(() => {});
+      delete clients[id];
+    }
+    clientStates[id] = { status: 'starting', qr: null, ready: false, name };
+    emit(id);
+
+    const client = createClient(id);
+    client.initialize().catch(err => {
+      console.error(`[${id}] Erro no reset:`, err.message);
+      clientStates[id].status = 'disconnected';
+      emit(id);
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Chats
+app.get('/chats', async (req, res) => {
+  try {
+    let allChats = [];
+    for (const id of SLOTS) {
+      if (!clientStates[id].ready) continue;
+      try {
+        let chats = await clients[id].getChats();
+        if (!chats.length) {
+          await new Promise(r => setTimeout(r, 2000));
+          chats = await clients[id].getChats();
+        }
+        const mapped = chats.slice(0, 40).map(c => ({
+          id: `${id}:${c.id._serialized}`,
+          name: c.name || c.id.user,
+          accountId: id,
+          timestamp: c.lastMessage?.timestamp || 0,
+        }));
+        allChats = allChats.concat(mapped);
+      } catch (e) { console.error(`[${id}] Erro getChats:`, e.message); }
+    }
+    allChats.sort((a, b) => b.timestamp - a.timestamp);
+    res.json(allChats);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Socket ───────────────────────────────────────────────────────────────────
+io.on('connection', socket => {
+  console.log('[Socket] conectado');
+  SLOTS.forEach(id => socket.emit('status_update', { accountId: id, ...clientStates[id] }));
+});
+
+// ─── Start ────────────────────────────────────────────────────────────────────
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor online na porta ${PORT}`);
 });
