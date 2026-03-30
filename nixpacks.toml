@@ -1,9 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs", "chromium", "cacert"]
+nixPkgs = ["nodejs", "cacert", "nss", "nspr", "atk", "cups", "dbus", "expat", "libdrm", "libxkbcommon", "mesa", "pango", "alsa-lib", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb", "xorg.libXcursor", "xorg.libXi", "xorg.libXrender", "xorg.libXtst"]
 
 [phases.build]
 cmds = ["npm install"]
 
 [variables]
-PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
-PUPPETEER_EXECUTABLE_PATH = "/run/current-system/sw/bin/chromium"
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "false"

@@ -57,8 +57,8 @@ function createClient(id) {
         '--no-first-run',
         '--no-zygote',
         '--single-process'
-      ],
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_PATH || undefined
+      ]
+
     }
   });
 
