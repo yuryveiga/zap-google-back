@@ -40,8 +40,8 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 
 // --- Configuração de Sessões ---
 const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
-let ACCOUNTS = ['acc1', 'acc2'];
-let accountNames = { 'acc1': 'WhatsApp 1', 'acc2': 'WhatsApp 2' };
+let ACCOUNTS = [];
+let accountNames = {};
 
 if (fs.existsSync(SESSIONS_FILE)) {
   try {
