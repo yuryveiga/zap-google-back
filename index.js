@@ -202,8 +202,8 @@ app.get('/logs', (req, res) => {
 app.get('/chrome-path', (req, res) => {
   const { execSync } = require('child_process');
   try {
-    const path = execSync('which chromium || which chromium-browser || which google-chrome || find /nix -name chromium 2>/dev/null | head -1').toString().trim();
-    res.json({ path });
+    const result = execSync('find /nix /run /usr -name "chromium*" -type f 2>/dev/null | head -5').toString().trim();
+    res.json({ result: result || 'nao encontrado' });
   } catch (e) {
     res.json({ error: e.message });
   }
