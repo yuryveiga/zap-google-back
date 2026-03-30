@@ -1,1221 +1,600 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WhatsApp Web</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600&display=swap" rel="stylesheet" />
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <style>
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    :root {
-      --bg-app: #111b21;
-      --bg-sidebar: #111b21;
-      --bg-chat: #0b141a;
-      --bg-panel: #1f2c33;
-      --bg-input: #2a3942;
-      --bg-msg-out: #005c4b;
-      --bg-msg-in: #1f2c33;
-      --bg-hover: #2a3942;
-      --bg-active: #2a3942;
-      --accent: #00a884;
-      --accent-dim: #00896c;
-      --text-primary: #e9edef;
-      --text-secondary: #8696a0;
-      --text-meta: #667781;
-      --border: #222d34;
-      --tick-read: #53bdeb;
-      --search-bg: #2a3942;
-      --radius-msg: 7.5px;
-      --sidebar-w: 380px;
-      --font: 'Nunito', sans-serif;
-      --transition: .15s ease;
-    }
-
-    html,
-    body {
-      height: 100%;
-      overflow: hidden;
-      background: var(--bg-app);
-      font-family: var(--font);
-      color: var(--text-primary);
-    }
-
-    #app {
-      display: flex;
-      height: 100vh;
-      width: 100vw;
-    }
-
-    /* ── Account bar (esquerda) ── */
-    #account-bar {
-      width: 60px;
-      background: #202c33;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 12px 0;
-      gap: 8px;
-      border-right: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    .acc-btn {
-      width: 42px;
-      height: 42px;
-      border-radius: 50%;
-      border: 2px solid transparent;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 600;
-      color: #fff;
-      transition: all var(--transition);
-      position: relative;
-      flex-shrink: 0;
-    }
-
-    .acc-btn:hover {
-      border-color: var(--accent);
-    }
-
-    .acc-btn.active {
-      border-color: var(--accent);
-    }
-
-    .acc-btn .acc-dot {
-      position: absolute;
-      bottom: 1px;
-      right: 1px;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      border: 2px solid #202c33;
-    }
-
-    .acc-dot.connected {
-      background: var(--accent);
-    }
-
-    .acc-dot.pending {
-      background: #f0ad4e;
-    }
-
-    .acc-dot.loading {
-      background: #5bc0de;
-    }
-
-    .acc-dot.disconnected {
-      background: #d9534f;
-    }
-
-    .acc-dot.starting {
-      background: var(--text-meta);
-    }
-
-    /* ── Setup screen (QR) ── */
-    #setup-screen {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0;
-      background: var(--bg-app);
-      overflow-y: auto;
-      padding: 20px;
-    }
-
-    #setup-screen h2 {
-      font-size: 20px;
-      font-weight: 600;
-      margin-bottom: 24px;
-    }
-
-    #accounts-grid {
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .acc-card {
-      background: var(--bg-panel);
-      border-radius: 16px;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
-      min-width: 240px;
-      border: 1px solid var(--border);
-    }
-
-    .acc-card h3 {
-      font-size: 16px;
-      font-weight: 600;
-    }
-
-    .acc-card .acc-status {
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-
-    .acc-card .qr-box {
-      width: 200px;
-      height: 200px;
-      background: #fff;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px;
-    }
-
-    .acc-card .qr-box img {
-      width: 100%;
-      height: 100%;
-    }
-
-    .acc-card .qr-placeholder {
-      width: 200px;
-      height: 200px;
-      background: var(--bg-input);
-      border-radius: 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      color: var(--text-secondary);
-      font-size: 13px;
-      text-align: center;
-      padding: 16px;
-    }
-
-    .btn-connect {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 24px;
-      font-family: var(--font);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--transition);
-      width: 100%;
-    }
-
-    .btn-connect:hover {
-      background: var(--accent-dim);
-    }
-
-    .btn-connect:disabled {
-      background: var(--bg-input);
-      cursor: not-allowed;
-      color: var(--text-meta);
-    }
-
-    .btn-reset {
-      background: transparent;
-      color: var(--text-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 16px;
-      font-family: var(--font);
-      font-size: 13px;
-      cursor: pointer;
-      transition: all var(--transition);
-      width: 100%;
-    }
-
-    .btn-reset:hover {
-      border-color: #d9534f;
-      color: #d9534f;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--text-meta);
-      display: inline-block;
-      margin-right: 6px;
-      animation: pulse 1.5s infinite;
-    }
-
-    @keyframes pulse {
-
-      0%,
-      100% {
-        opacity: 1
-      }
-
-      50% {
-        opacity: .3
-      }
-    }
-
-    .loading-bar {
-      width: 100%;
-      height: 4px;
-      background: var(--bg-input);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .loading-bar-fill {
-      height: 100%;
-      background: var(--accent);
-      border-radius: 2px;
-      transition: width .5s;
-    }
-
-    /* ── Main layout ── */
-    #main {
-      flex: 1;
-      display: none;
-    }
-
-    #main.visible {
-      display: flex;
-    }
-
-    /* ── Sidebar ── */
-    #sidebar {
-      width: var(--sidebar-w);
-      min-width: var(--sidebar-w);
-      display: flex;
-      flex-direction: column;
-      background: var(--bg-sidebar);
-      border-right: 1px solid var(--border);
-      overflow: hidden;
-    }
-
-    #sidebar-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 16px;
-      background: var(--bg-panel);
-      min-height: 60px;
-      flex-shrink: 0;
-    }
-
-    #sidebar-header span {
-      font-size: 17px;
-      font-weight: 600;
-      flex: 1;
-    }
-
-    .acc-tag {
-      font-size: 11px;
-      background: var(--bg-input);
-      color: var(--text-secondary);
-      padding: 2px 8px;
-      border-radius: 10px;
-    }
-
-    #search-bar {
-      padding: 8px 12px;
-      background: var(--bg-sidebar);
-      flex-shrink: 0;
-    }
-
-    #search-bar input {
-      width: 100%;
-      background: var(--search-bg);
-      border: none;
-      outline: none;
-      border-radius: 8px;
-      padding: 9px 16px 9px 36px;
-      color: var(--text-primary);
-      font-family: var(--font);
-      font-size: 14px;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7' stroke='%238696a0' stroke-width='2'/%3E%3Cpath d='M16.5 16.5L21 21' stroke='%238696a0' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: 10px center;
-    }
-
-    #search-bar input::placeholder {
-      color: var(--text-meta);
-    }
-
-    /* Account filter tabs */
-    #acc-tabs {
-      display: flex;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    .acc-tab {
-      flex: 1;
-      padding: 8px;
-      text-align: center;
-      font-size: 13px;
-      cursor: pointer;
-      color: var(--text-secondary);
-      border-bottom: 2px solid transparent;
-      transition: all var(--transition);
-    }
-
-    .acc-tab:hover {
-      color: var(--text-primary);
-      background: var(--bg-hover);
-    }
-
-    .acc-tab.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
-    }
-
-    .acc-tab .tab-dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      margin-right: 5px;
-      vertical-align: middle;
-    }
-
-    #chat-list {
-      flex: 1;
-      overflow-y: auto;
-    }
-
-    #chat-list::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    #chat-list::-webkit-scrollbar-thumb {
-      background: var(--bg-input);
-      border-radius: 3px;
-    }
-
-    .chat-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 16px;
-      cursor: pointer;
-      border-bottom: 1px solid var(--border);
-      transition: background var(--transition);
-      min-height: 72px;
-    }
-
-    .chat-item:hover {
-      background: var(--bg-hover);
-    }
-
-    .chat-item.active {
-      background: var(--bg-active);
-    }
-
-    .avatar {
-      width: 49px;
-      height: 49px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      font-weight: 600;
-      color: #fff;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .avatar.sm {
-      width: 40px;
-      height: 40px;
-      font-size: 15px;
-    }
-
-    .avatar.lg {
-      width: 80px;
-      height: 80px;
-      font-size: 30px;
-    }
-
-    .avatar img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: 50%;
-      position: absolute;
-      inset: 0;
-    }
-
-    .avatar .acc-badge {
-      position: absolute;
-      bottom: -2px;
-      right: -2px;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      border: 2px solid var(--bg-sidebar);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 7px;
-      font-weight: 700;
-      color: #fff;
-    }
-
-    .chat-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .chat-row1 {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .chat-name {
-      font-size: 15px;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      color: var(--text-primary);
-    }
-
-    .chat-time {
-      font-size: 12px;
-      color: var(--text-meta);
-      flex-shrink: 0;
-      margin-left: 8px;
-    }
-
-    .chat-row2 {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 3px;
-    }
-
-    .chat-preview {
-      font-size: 13px;
-      color: var(--text-secondary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .unread-badge {
-      background: var(--accent);
-      color: #fff;
-      font-size: 11px;
-      font-weight: 600;
-      border-radius: 50%;
-      min-width: 18px;
-      height: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 4px;
-      flex-shrink: 0;
-      margin-left: 6px;
-    }
-
-    .empty-list {
-      text-align: center;
-      padding: 40px 20px;
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-
-    /* ── Chat Area ── */
-    #chat-area {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg-chat);
-      position: relative;
-      overflow: hidden;
-    }
-
-    #chat-area::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      opacity: .04;
-      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
-    }
-
-    #welcome-screen {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-    }
-
-    #welcome-screen svg {
-      opacity: .1;
-    }
-
-    #welcome-screen h3 {
-      font-size: 28px;
-      font-weight: 300;
-      opacity: .7;
-    }
-
-    #welcome-screen p {
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-
-    #chat-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 16px;
-      background: var(--bg-panel);
-      min-height: 60px;
-      z-index: 1;
-      flex-shrink: 0;
-      cursor: pointer;
-    }
-
-    #chat-header:hover {
-      background: var(--bg-hover);
-    }
-
-    #header-info {
-      flex: 1;
-    }
-
-    #header-name {
-      font-size: 16px;
-      font-weight: 600;
-    }
-
-    #header-sub {
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    /* Contact panel */
-    #contact-panel {
-      position: absolute;
-      top: 0;
-      right: -360px;
-      width: 360px;
-      height: 100%;
-      background: var(--bg-sidebar);
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      transition: right .25s ease;
-      box-shadow: -4px 0 16px rgba(0, 0, 0, .3);
-    }
-
-    #contact-panel.open {
-      right: 0;
-    }
-
-    #cp-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 16px;
-      background: var(--bg-panel);
-      min-height: 60px;
-    }
-
-    #cp-header span {
-      font-size: 16px;
-      font-weight: 600;
-      flex: 1;
-    }
-
-    .close-btn {
-      background: none;
-      border: none;
-      color: var(--text-secondary);
-      cursor: pointer;
-      font-size: 20px;
-      padding: 4px;
-      transition: color var(--transition);
-    }
-
-    .close-btn:hover {
-      color: var(--text-primary);
-    }
-
-    #cp-body {
-      flex: 1;
-      overflow-y: auto;
-    }
-
-    .cp-cover {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 32px 16px 20px;
-      gap: 10px;
-      background: var(--bg-panel);
-      margin-bottom: 8px;
-    }
-
-    .cp-cover h2 {
-      font-size: 20px;
-      font-weight: 600;
-    }
-
-    .cp-cover p {
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-
-    .cp-section {
-      padding: 12px 16px;
-    }
-
-    .cp-section h4 {
-      font-size: 12px;
-      color: var(--accent);
-      font-weight: 600;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: .5px;
-    }
-
-    .cp-field {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .cp-field:last-child {
-      border-bottom: none;
-    }
-
-    .cp-field label {
-      font-size: 11px;
-      color: var(--text-meta);
-    }
-
-    .cp-field span {
-      font-size: 14px;
-      color: var(--text-primary);
-    }
-
-    /* Messages */
-    #messages-area {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px 8% 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      position: relative;
-      z-index: 1;
-    }
-
-    #messages-area::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    #messages-area::-webkit-scrollbar-thumb {
-      background: var(--bg-input);
-      border-radius: 3px;
-    }
-
-    .msg-day-divider {
-      text-align: center;
-      margin: 10px 0;
-    }
-
-    .msg-day-divider span {
-      background: var(--bg-panel);
-      color: var(--text-secondary);
-      font-size: 12px;
-      padding: 4px 12px;
-      border-radius: 8px;
-    }
-
-    .msg-bubble {
-      max-width: 65%;
-      padding: 6px 10px 4px;
-      border-radius: var(--radius-msg);
-      font-size: 14.5px;
-      line-height: 1.5;
-      word-break: break-word;
-      animation: fadeIn .15s ease;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(3px);
-      }
-
-      to {
-        opacity: 1;
-        transform: none;
-      }
-    }
-
-    .msg-bubble.out {
-      background: var(--bg-msg-out);
-      align-self: flex-end;
-      border-radius: var(--radius-msg) 0 var(--radius-msg) var(--radius-msg);
-    }
-
-    .msg-bubble.in {
-      background: var(--bg-msg-in);
-      align-self: flex-start;
-      border-radius: 0 var(--radius-msg) var(--radius-msg) var(--radius-msg);
-    }
-
-    .msg-meta {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 4px;
-      margin-top: 2px;
-    }
-
-    .msg-time {
-      font-size: 11px;
-      color: var(--text-meta);
-    }
-
-    .msg-tick {
-      font-size: 12px;
-      color: var(--text-meta);
-    }
-
-    .msg-tick.read {
-      color: var(--tick-read);
-    }
-
-    /* Input */
-    #input-area {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 16px;
-      background: var(--bg-panel);
-      z-index: 1;
-      flex-shrink: 0;
-    }
-
-    #msg-input {
-      flex: 1;
-      background: var(--bg-input);
-      border: none;
-      outline: none;
-      border-radius: 10px;
-      padding: 11px 16px;
-      color: var(--text-primary);
-      font-family: var(--font);
-      font-size: 15px;
-      resize: none;
-      max-height: 120px;
-      line-height: 1.5;
-    }
-
-    #msg-input::placeholder {
-      color: var(--text-meta);
-    }
-
-    #send-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      border: none;
-      cursor: pointer;
-      background: var(--accent);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background var(--transition);
-      flex-shrink: 0;
-    }
-
-    #send-btn:hover {
-      background: var(--accent-dim);
-    }
-
-    #send-btn:disabled {
-      background: var(--bg-input);
-      cursor: not-allowed;
-    }
-
-    .spinner {
-      width: 28px;
-      height: 28px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-      margin: 40px auto;
-      display: block;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WhatsApp Web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-app:        #111b21;
+    --bg-sidebar:    #111b21;
+    --bg-chat:       #0b141a;
+    --bg-panel:      #1f2c33;
+    --bg-input:      #2a3942;
+    --bg-msg-out:    #005c4b;
+    --bg-msg-in:     #1f2c33;
+    --bg-hover:      #2a3942;
+    --bg-active:     #2a3942;
+    --accent:        #00a884;
+    --accent-dim:    #00896c;
+    --text-primary:  #e9edef;
+    --text-secondary:#8696a0;
+    --text-meta:     #667781;
+    --border:        #222d34;
+    --tick-read:     #53bdeb;
+    --search-bg:     #2a3942;
+    --radius-msg:    7.5px;
+    --sidebar-w:     380px;
+    --font:          'Nunito', sans-serif;
+    --transition:    .15s ease;
+  }
+
+  html, body { height: 100%; overflow: hidden; background: var(--bg-app); font-family: var(--font); color: var(--text-primary); }
+  #app { display: flex; height: 100vh; width: 100vw; }
+
+  /* ── Account bar (esquerda) ── */
+  #account-bar {
+    width: 60px; background: #202c33; display: flex; flex-direction: column;
+    align-items: center; padding: 12px 0; gap: 8px; border-right: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .acc-btn {
+    width: 42px; height: 42px; border-radius: 50%; border: 2px solid transparent;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600; color: #fff; transition: all var(--transition);
+    position: relative; flex-shrink: 0;
+  }
+  .acc-btn:hover { border-color: var(--accent); }
+  .acc-btn.active { border-color: var(--accent); }
+  .acc-btn .acc-dot {
+    position: absolute; bottom: 1px; right: 1px; width: 10px; height: 10px;
+    border-radius: 50%; border: 2px solid #202c33;
+  }
+  .acc-dot.connected  { background: var(--accent); }
+  .acc-dot.pending    { background: #f0ad4e; }
+  .acc-dot.loading    { background: #5bc0de; }
+  .acc-dot.disconnected { background: #d9534f; }
+  .acc-dot.starting   { background: var(--text-meta); }
+
+  /* ── Setup screen (QR) ── */
+  #setup-screen {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0; background: var(--bg-app); overflow-y: auto; padding: 20px;
+  }
+  #setup-screen h2 { font-size: 20px; font-weight: 600; margin-bottom: 24px; }
+  #accounts-grid { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+  .acc-card {
+    background: var(--bg-panel); border-radius: 16px; padding: 24px;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    min-width: 240px; border: 1px solid var(--border);
+  }
+  .acc-card h3 { font-size: 16px; font-weight: 600; }
+  .acc-card .acc-status { font-size: 13px; color: var(--text-secondary); }
+  .acc-card .qr-box {
+    width: 200px; height: 200px; background: #fff; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; padding: 8px;
+  }
+  .acc-card .qr-box img { width: 100%; height: 100%; }
+  .acc-card .qr-placeholder {
+    width: 200px; height: 200px; background: var(--bg-input); border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; color: var(--text-secondary); font-size: 13px; text-align: center; padding: 16px;
+  }
+  .btn-connect {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 10px 24px; font-family: var(--font); font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: background var(--transition); width: 100%;
+  }
+  .btn-connect:hover { background: var(--accent-dim); }
+  .btn-connect:disabled { background: var(--bg-input); cursor: not-allowed; color: var(--text-meta); }
+  .btn-reset {
+    background: transparent; color: var(--text-secondary); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 16px; font-family: var(--font); font-size: 13px;
+    cursor: pointer; transition: all var(--transition); width: 100%;
+  }
+  .btn-reset:hover { border-color: #d9534f; color: #d9534f; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-meta); display: inline-block; margin-right: 6px; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .loading-bar { width: 100%; height: 4px; background: var(--bg-input); border-radius: 2px; overflow: hidden; }
+  .loading-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .5s; }
+
+  /* ── Main layout ── */
+  #main { flex: 1; display: none; }
+  #main.visible { display: flex; }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: var(--sidebar-w); min-width: var(--sidebar-w); display: flex; flex-direction: column;
+    background: var(--bg-sidebar); border-right: 1px solid var(--border); overflow: hidden;
+  }
+  #sidebar-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; background: var(--bg-panel); min-height: 60px; flex-shrink: 0;
+  }
+  #sidebar-header span { font-size: 17px; font-weight: 600; flex: 1; }
+  .acc-tag {
+    font-size: 11px; background: var(--bg-input); color: var(--text-secondary);
+    padding: 2px 8px; border-radius: 10px;
+  }
+
+  #search-bar { padding: 8px 12px; background: var(--bg-sidebar); flex-shrink: 0; }
+  #search-bar input {
+    width: 100%; background: var(--search-bg); border: none; outline: none;
+    border-radius: 8px; padding: 9px 16px 9px 36px; color: var(--text-primary);
+    font-family: var(--font); font-size: 14px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7' stroke='%238696a0' stroke-width='2'/%3E%3Cpath d='M16.5 16.5L21 21' stroke='%238696a0' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: 10px center;
+  }
+  #search-bar input::placeholder { color: var(--text-meta); }
+
+  /* Account filter tabs */
+  #acc-tabs {
+    display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .acc-tab {
+    flex: 1; padding: 8px; text-align: center; font-size: 13px; cursor: pointer;
+    color: var(--text-secondary); border-bottom: 2px solid transparent;
+    transition: all var(--transition);
+  }
+  .acc-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .acc-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .acc-tab .tab-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+
+  #chat-list { flex: 1; overflow-y: auto; }
+  #chat-list::-webkit-scrollbar { width: 6px; }
+  #chat-list::-webkit-scrollbar-thumb { background: var(--bg-input); border-radius: 3px; }
+
+  .chat-item {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    cursor: pointer; border-bottom: 1px solid var(--border); transition: background var(--transition);
+    min-height: 72px;
+  }
+  .chat-item:hover { background: var(--bg-hover); }
+  .chat-item.active { background: var(--bg-active); }
+
+  .avatar {
+    width: 49px; height: 49px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 600; color: #fff; overflow: hidden; position: relative;
+  }
+  .avatar.sm { width: 40px; height: 40px; font-size: 15px; }
+  .avatar.lg { width: 80px; height: 80px; font-size: 30px; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; position: absolute; inset: 0; }
+  .avatar .acc-badge {
+    position: absolute; bottom: -2px; right: -2px; width: 16px; height: 16px;
+    border-radius: 50%; border: 2px solid var(--bg-sidebar);
+    display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 700; color: #fff;
+  }
+
+  .chat-info { flex: 1; min-width: 0; }
+  .chat-row1 { display: flex; align-items: center; justify-content: space-between; }
+  .chat-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+  .chat-time { font-size: 12px; color: var(--text-meta); flex-shrink: 0; margin-left: 8px; }
+  .chat-row2 { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
+  .chat-preview { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .unread-badge {
+    background: var(--accent); color: #fff; font-size: 11px; font-weight: 600;
+    border-radius: 50%; min-width: 18px; height: 18px; display: flex; align-items: center;
+    justify-content: center; padding: 0 4px; flex-shrink: 0; margin-left: 6px;
+  }
+  .empty-list { text-align: center; padding: 40px 20px; color: var(--text-secondary); font-size: 14px; }
+
+  /* ── Chat Area ── */
+  #chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg-chat); position: relative; overflow: hidden; }
+  #chat-area::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .04;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  #welcome-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+  #welcome-screen svg { opacity: .1; }
+  #welcome-screen h3 { font-size: 28px; font-weight: 300; opacity: .7; }
+  #welcome-screen p  { color: var(--text-secondary); font-size: 14px; }
+
+  #chat-header {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    background: var(--bg-panel); min-height: 60px; z-index: 1; flex-shrink: 0; cursor: pointer;
+  }
+  #chat-header:hover { background: var(--bg-hover); }
+  #header-info { flex: 1; }
+  #header-name { font-size: 16px; font-weight: 600; }
+  #header-sub { font-size: 12px; color: var(--text-secondary); }
+
+  /* Contact panel */
+  #contact-panel {
+    position: absolute; top: 0; right: -360px; width: 360px; height: 100%;
+    background: var(--bg-sidebar); z-index: 10; display: flex; flex-direction: column;
+    transition: right .25s ease; box-shadow: -4px 0 16px rgba(0,0,0,.3);
+  }
+  #contact-panel.open { right: 0; }
+  #cp-header { display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--bg-panel); min-height: 60px; }
+  #cp-header span { font-size: 16px; font-weight: 600; flex: 1; }
+  .close-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 20px; padding: 4px; transition: color var(--transition); }
+  .close-btn:hover { color: var(--text-primary); }
+  #cp-body { flex: 1; overflow-y: auto; }
+  .cp-cover { display: flex; flex-direction: column; align-items: center; padding: 32px 16px 20px; gap: 10px; background: var(--bg-panel); margin-bottom: 8px; }
+  .cp-cover h2 { font-size: 20px; font-weight: 600; }
+  .cp-cover p  { font-size: 13px; color: var(--text-secondary); }
+  .cp-section { padding: 12px 16px; }
+  .cp-section h4 { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+  .cp-field { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .cp-field:last-child { border-bottom: none; }
+  .cp-field label { font-size: 11px; color: var(--text-meta); }
+  .cp-field span  { font-size: 14px; color: var(--text-primary); }
+
+  /* Messages */
+  #messages-area {
+    flex: 1; overflow-y: auto; padding: 16px 8% 12px; display: flex; flex-direction: column; gap: 2px;
+    position: relative; z-index: 1;
+  }
+  #messages-area::-webkit-scrollbar { width: 6px; }
+  #messages-area::-webkit-scrollbar-thumb { background: var(--bg-input); border-radius: 3px; }
+
+  .msg-day-divider { text-align: center; margin: 10px 0; }
+  .msg-day-divider span { background: var(--bg-panel); color: var(--text-secondary); font-size: 12px; padding: 4px 12px; border-radius: 8px; }
+
+  .msg-bubble {
+    max-width: 65%; padding: 6px 10px 4px; border-radius: var(--radius-msg);
+    font-size: 14.5px; line-height: 1.5; word-break: break-word;
+    animation: fadeIn .15s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(3px); } to { opacity:1; transform: none; } }
+  .msg-bubble.out { background: var(--bg-msg-out); align-self: flex-end; border-radius: var(--radius-msg) 0 var(--radius-msg) var(--radius-msg); }
+  .msg-bubble.in  { background: var(--bg-msg-in);  align-self: flex-start; border-radius: 0 var(--radius-msg) var(--radius-msg) var(--radius-msg); }
+  .msg-meta { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 2px; }
+  .msg-time { font-size: 11px; color: var(--text-meta); }
+  .msg-tick { font-size: 12px; color: var(--text-meta); }
+  .msg-tick.read { color: var(--tick-read); }
+
+  /* Input */
+  #input-area { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--bg-panel); z-index: 1; flex-shrink: 0; }
+  #msg-input {
+    flex: 1; background: var(--bg-input); border: none; outline: none;
+    border-radius: 10px; padding: 11px 16px; color: var(--text-primary);
+    font-family: var(--font); font-size: 15px; resize: none; max-height: 120px; line-height: 1.5;
+  }
+  #msg-input::placeholder { color: var(--text-meta); }
+  #send-btn {
+    width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--accent); color: #fff; display: flex; align-items: center;
+    justify-content: center; transition: background var(--transition); flex-shrink: 0;
+  }
+  #send-btn:hover { background: var(--accent-dim); }
+  #send-btn:disabled { background: var(--bg-input); cursor: not-allowed; }
+
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; margin: 40px auto; display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
 </head>
-
 <body>
-  <div id="app">
+<div id="app">
 
-    <!-- Account bar -->
-    <div id="account-bar"></div>
+  <!-- Account bar -->
+  <div id="account-bar"></div>
 
-    <!-- Setup / QR screen -->
-    <div id="setup-screen">
-      <h2>WhatsApp Web</h2>
-      <div id="accounts-grid"></div>
-    </div>
-
-    <!-- Main app -->
-    <div id="main">
-      <div id="sidebar">
-        <div id="sidebar-header">
-          <div class="avatar sm" id="my-avatar" style="background:#667781">W</div>
-          <span>WhatsApp</span>
-          <span class="acc-tag" id="active-acc-tag">acc1</span>
-        </div>
-        <div id="search-bar">
-          <input type="text" id="search-input" placeholder="Pesquisar conversas" oninput="filterChats(this.value)" />
-        </div>
-        <div id="acc-tabs"></div>
-        <div id="chat-list">
-          <div class="spinner"></div>
-        </div>
-      </div>
-
-      <div id="chat-area">
-        <div id="welcome-screen">
-          <svg width="160" height="160" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"
-              fill="#00a884" />
-          </svg>
-          <h3>WhatsApp Web</h3>
-          <p>Selecione uma conversa para comecar</p>
-        </div>
-        <div id="contact-panel">
-          <div id="cp-header">
-            <button class="close-btn" onclick="closeContactPanel()">&#x2715;</button>
-            <span>Informacoes do contato</span>
-          </div>
-          <div id="cp-body"></div>
-        </div>
-      </div>
-    </div>
-
+  <!-- Setup / QR screen -->
+  <div id="setup-screen">
+    <h2>WhatsApp Web</h2>
+    <div id="accounts-grid"></div>
   </div>
-  <script>
-    const socket = io();
 
-    // ── Estado ────────────────────────────────────────────────────────────────────
-    let accountStates = {};   // { acc1: { status, qr, ready, loadingPercent }, ... }
-    let allChats = [];
-    let activeChat = null;
-    let activeFilter = 'all';
-    let avatarCache = {};
-    let contactCache = {};
+  <!-- Main app -->
+  <div id="main">
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <div class="avatar sm" id="my-avatar" style="background:#667781">W</div>
+        <span>WhatsApp</span>
+        <span class="acc-tag" id="active-acc-tag">acc1</span>
+      </div>
+      <div id="search-bar">
+        <input type="text" id="search-input" placeholder="Pesquisar conversas" oninput="filterChats(this.value)"/>
+      </div>
+      <div id="acc-tabs"></div>
+      <div id="chat-list"><div class="spinner"></div></div>
+    </div>
 
-    // ── Cores ─────────────────────────────────────────────────────────────────────
-    const COLORS = ['#e74c3c', '#e67e22', '#2ecc71', '#3498db', '#9b59b6', '#1abc9c', '#e91e63', '#00bcd4', '#ff5722', '#607d8b'];
-    const ACC_COLORS = { acc1: '#00a884', acc2: '#3498db', acc3: '#9b59b6', acc4: '#e74c3c' };
+    <div id="chat-area">
+      <div id="welcome-screen">
+        <svg width="160" height="160" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#00a884"/>
+        </svg>
+        <h3>WhatsApp Web</h3>
+        <p>Selecione uma conversa para comecar</p>
+      </div>
+      <div id="contact-panel">
+        <div id="cp-header">
+          <button class="close-btn" onclick="closeContactPanel()">&#x2715;</button>
+          <span>Informacoes do contato</span>
+        </div>
+        <div id="cp-body"></div>
+      </div>
+    </div>
+  </div>
 
-    function avatarColor(name) {
-      let h = 0; for (let i = 0; i < (name || '').length; i++) h += name.charCodeAt(i);
-      return COLORS[h % COLORS.length];
-    }
-    function accColor(id) { return ACC_COLORS[id] || '#667781'; }
+</div>
+<script>
+const socket = io();
 
-    // ── Helpers ───────────────────────────────────────────────────────────────────
-    function esc(t) { return (t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+// ── Estado ────────────────────────────────────────────────────────────────────
+let accountStates  = {};   // { acc1: { status, qr, ready, loadingPercent }, ... }
+let allChats       = [];
+let activeChat     = null;
+let activeFilter   = 'all';
+let avatarCache    = {};
+let contactCache   = {};
 
-    function initials(name) {
-      if (!name) return '?';
-      return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    }
+// ── Cores ─────────────────────────────────────────────────────────────────────
+const COLORS = ['#e74c3c','#e67e22','#2ecc71','#3498db','#9b59b6','#1abc9c','#e91e63','#00bcd4','#ff5722','#607d8b'];
+const ACC_COLORS = { acc1: '#00a884', acc2: '#3498db', acc3: '#9b59b6', acc4: '#e74c3c' };
 
-    function formatTime(ts) {
-      if (!ts) return '';
-      const d = new Date(ts * 1000), now = new Date();
-      if (d.toDateString() === now.toDateString())
-        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      const y = new Date(now); y.setDate(now.getDate() - 1);
-      if (d.toDateString() === y.toDateString()) return 'Ontem';
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-    }
+function avatarColor(name) {
+  let h = 0; for (let i=0;i<(name||'').length;i++) h+=name.charCodeAt(i);
+  return COLORS[h % COLORS.length];
+}
+function accColor(id) { return ACC_COLORS[id] || '#667781'; }
 
-    function formatDay(ts) {
-      if (!ts) return '';
-      const d = new Date(ts * 1000), now = new Date();
-      if (d.toDateString() === now.toDateString()) return 'Hoje';
-      const y = new Date(now); y.setDate(now.getDate() - 1);
-      if (d.toDateString() === y.toDateString()) return 'Ontem';
-      return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
-    }
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-    function tick(ack) {
-      if (ack === 3) return '<span class="msg-tick read">&#10003;&#10003;</span>';
-      if (ack === 2) return '<span class="msg-tick">&#10003;&#10003;</span>';
-      if (ack === 1) return '<span class="msg-tick">&#10003;</span>';
-      return '<span class="msg-tick" style="font-size:10px">&#9679;</span>';
-    }
+function initials(name) {
+  if (!name) return '?';
+  return name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+}
 
-    function avatarEl(name, url, cls = '', accId = '') {
-      const badge = accId ? `<div class="acc-badge" style="background:${accColor(accId)}">${accId.replace('acc', '')}</div>` : '';
-      const img = url ? `<img src="${url}" onerror="this.style.display='none'"/>` : '';
-      return `<div class="avatar ${cls}" style="background:${avatarColor(name)}">${img}${initials(name)}${badge}</div>`;
-    }
+function formatTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts*1000), now = new Date();
+  if (d.toDateString()===now.toDateString())
+    return d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const y=new Date(now); y.setDate(now.getDate()-1);
+  if (d.toDateString()===y.toDateString()) return 'Ontem';
+  return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+}
 
-    // ── Socket events ─────────────────────────────────────────────────────────────
-    socket.on('status_update', ({ accountId, status, qr, ready, loadingPercent }) => {
-      accountStates[accountId] = { status, qr, ready, loadingPercent };
-      updateAccountBar();
-      updateSetupCards();
+function formatDay(ts) {
+  if (!ts) return '';
+  const d=new Date(ts*1000), now=new Date();
+  if (d.toDateString()===now.toDateString()) return 'Hoje';
+  const y=new Date(now); y.setDate(now.getDate()-1);
+  if (d.toDateString()===y.toDateString()) return 'Ontem';
+  return d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+}
 
-      // Se pelo menos uma conta conectada, mostra o main
-      const anyConnected = Object.values(accountStates).some(s => s.ready);
-      if (anyConnected) {
-        document.getElementById('setup-screen').style.display = 'none';
-        document.getElementById('main').classList.add('visible');
-        loadChats();
-        renderAccTabs();
-      }
-    });
+function tick(ack) {
+  if (ack===3) return '<span class="msg-tick read">&#10003;&#10003;</span>';
+  if (ack===2) return '<span class="msg-tick">&#10003;&#10003;</span>';
+  if (ack===1) return '<span class="msg-tick">&#10003;</span>';
+  return '<span class="msg-tick" style="font-size:10px">&#9679;</span>';
+}
 
-    socket.on('new_message', (msg) => {
-      const chat = allChats.find(c => c.id === msg.accountId + ':' + msg.chatId);
-      if (chat) {
-        chat.lastMessage = { body: msg.body, timestamp: msg.timestamp, fromMe: msg.fromMe };
-        renderChatList();
-      }
-      if (activeChat && activeChat.id === msg.accountId + ':' + msg.chatId) {
-        appendMessage(msg);
-        scrollBottom();
-      }
-    });
+function avatarEl(name, url, cls='', accId='') {
+  const badge = accId ? `<div class="acc-badge" style="background:${accColor(accId)}">${accId.replace('acc','')}</div>` : '';
+  const img   = url ? `<img src="${url}" onerror="this.style.display='none'"/>` : '';
+  return `<div class="avatar ${cls}" style="background:${avatarColor(name)}">${img}${initials(name)}${badge}</div>`;
+}
 
-    // ── Account bar ───────────────────────────────────────────────────────────────
-    function updateAccountBar() {
-      const bar = document.getElementById('account-bar');
-      bar.innerHTML = Object.entries(accountStates).map(([id, s]) => `
-    <div class="acc-btn ${activeFilter === id ? 'active' : ''}" style="background:${accColor(id)}"
+// ── Socket events ─────────────────────────────────────────────────────────────
+socket.on('status_update', ({ accountId, status, qr, ready, loadingPercent }) => {
+  accountStates[accountId] = { status, qr, ready, loadingPercent };
+  updateAccountBar();
+  updateSetupCards();
+
+  // Se pelo menos uma conta conectada, mostra o main
+  const anyConnected = Object.values(accountStates).some(s => s.ready);
+  if (anyConnected) {
+    document.getElementById('setup-screen').style.display = 'none';
+    document.getElementById('main').classList.add('visible');
+    loadChats();
+    renderAccTabs();
+  }
+});
+
+socket.on('new_message', (msg) => {
+  const chat = allChats.find(c => c.id === msg.accountId + ':' + msg.chatId);
+  if (chat) {
+    chat.lastMessage = { body: msg.body, timestamp: msg.timestamp, fromMe: msg.fromMe };
+    renderChatList();
+  }
+  if (activeChat && activeChat.id === msg.accountId + ':' + msg.chatId) {
+    appendMessage(msg);
+    scrollBottom();
+  }
+});
+
+// ── Account bar ───────────────────────────────────────────────────────────────
+function updateAccountBar() {
+  const bar = document.getElementById('account-bar');
+  bar.innerHTML = Object.entries(accountStates).map(([id, s]) => `
+    <div class="acc-btn ${activeFilter===id?'active':''}" style="background:${accColor(id)}"
       onclick="setAccFilter('${id}')" title="${id}: ${s.status}">
-      ${id.replace('acc', '')}
+      ${id.replace('acc','')}
       <div class="acc-dot ${s.status}"></div>
     </div>`).join('') +
-        `<div class="acc-btn" style="background:var(--bg-input);margin-top:auto"
+    `<div class="acc-btn" style="background:var(--bg-input);margin-top:auto"
       onclick="showSetup()" title="Gerenciar contas" style="font-size:20px">&#9881;</div>`;
-    }
+}
 
-    function showSetup() {
-      document.getElementById('setup-screen').style.display = 'flex';
-      document.getElementById('main').classList.remove('visible');
-      updateSetupCards();
-    }
+function showSetup() {
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('main').classList.remove('visible');
+  updateSetupCards();
+}
 
-    // ── Setup cards ───────────────────────────────────────────────────────────────
-    function updateSetupCards() {
-      const grid = document.getElementById('accounts-grid');
-      grid.innerHTML = Object.entries(accountStates).map(([id, s]) => {
-        const statusLabel = {
-          starting: 'Iniciando...', initializing: 'Inicializando...', loading: `Carregando ${s.loadingPercent || 0}%`,
-          pending: 'Aguardando QR Code', authenticated: 'Autenticado', connected: 'Conectado',
-          disconnected: 'Desconectado'
-        }[s.status] || s.status;
+// ── Setup cards ───────────────────────────────────────────────────────────────
+function updateSetupCards() {
+  const grid = document.getElementById('accounts-grid');
+  grid.innerHTML = Object.entries(accountStates).map(([id, s]) => {
+    const statusLabel = {
+      starting:      'Iniciando...',
+      initializing:  'Inicializando...',
+      loading:       `Carregando ${s.loadingPercent||0}%`,
+      pending:       'Escaneie o QR Code',
+      authenticated: 'Autenticado...',
+      connected:     'Conectado',
+      disconnected:  'Desconectado — reinicie o servidor',
+    }[s.status] || s.status;
 
-        const qrHtml = s.qr
-          ? `<div class="qr-box"><img src="${s.qr}"/></div>`
-          : s.status === 'connected'
-            ? `<div class="qr-placeholder" style="color:var(--accent)">&#10003;<br/>Conectado</div>`
-            : `<div class="qr-placeholder"><span class="status-dot"></span>${statusLabel}</div>`;
+    const isLoading = ['starting','initializing','loading','authenticated'].includes(s.status);
 
-        const canConnect = s.status === 'disconnected' || s.status === 'starting';
-        const isLoading = s.status === 'initializing' || s.status === 'loading';
+    const qrHtml = s.qr
+      ? `<div class="qr-box"><img src="${s.qr}"/></div>`
+      : s.status === 'connected'
+        ? `<div class="qr-placeholder" style="color:var(--accent);font-size:40px">&#10003;</div>`
+        : `<div class="qr-placeholder"><span class="status-dot"></span><span>${statusLabel}</span></div>`;
 
-        return `
+    return `
       <div class="acc-card">
         <div style="display:flex;align-items:center;gap:8px">
           <div style="width:12px;height:12px;border-radius:50%;background:${accColor(id)}"></div>
           <h3>${id}</h3>
         </div>
         <p class="acc-status">${statusLabel}</p>
-        ${isLoading ? `<div class="loading-bar"><div class="loading-bar-fill" style="width:${s.loadingPercent || 10}%"></div></div>` : ''}
+        ${isLoading ? `<div class="loading-bar"><div class="loading-bar-fill" style="width:${s.loadingPercent||15}%"></div></div>` : ''}
         ${qrHtml}
-        <button class="btn-connect" onclick="initAccount('${id}')" ${!canConnect ? 'disabled' : ''}>
-          ${canConnect ? 'Conectar' : isLoading ? 'Conectando...' : 'Conectado'}
-        </button>
         <button class="btn-reset" onclick="resetAccount('${id}')">Resetar sessao</button>
       </div>`;
-      }).join('');
-    }
+  }).join('');
+}
 
-    async function initAccount(id) {
-      await fetch(`/initialize/${id}`, { method: 'POST' });
-    }
+async function resetAccount(id) {
+  if (!confirm(`Resetar sessao de ${id}? Precisara escanear o QR novamente.`)) return;
+  await fetch(`/reset/${id}`, { method: 'POST' });
+}
 
-    async function resetAccount(id) {
-      if (!confirm(`Resetar sessao de ${id}? Precisara escanear o QR novamente.`)) return;
-      await fetch(`/reset/${id}`, { method: 'POST' });
-    }
+// ── Account tabs ──────────────────────────────────────────────────────────────
+function renderAccTabs() {
+  const tabs = document.getElementById('acc-tabs');
+  const connected = Object.entries(accountStates).filter(([,s]) => s.ready);
+  if (connected.length <= 1) { tabs.innerHTML = ''; return; }
 
-    // ── Account tabs ──────────────────────────────────────────────────────────────
-    function renderAccTabs() {
-      const tabs = document.getElementById('acc-tabs');
-      const connected = Object.entries(accountStates).filter(([, s]) => s.ready);
-      if (connected.length <= 1) { tabs.innerHTML = ''; return; }
-
-      tabs.innerHTML = `<div class="acc-tab ${activeFilter === 'all' ? 'active' : ''}" onclick="setAccFilter('all')">Todos</div>` +
-        connected.map(([id]) =>
-          `<div class="acc-tab ${activeFilter === id ? 'active' : ''}" onclick="setAccFilter('${id}')">
+  tabs.innerHTML = `<div class="acc-tab ${activeFilter==='all'?'active':''}" onclick="setAccFilter('all')">Todos</div>` +
+    connected.map(([id]) =>
+      `<div class="acc-tab ${activeFilter===id?'active':''}" onclick="setAccFilter('${id}')">
         <span class="tab-dot" style="background:${accColor(id)}"></span>${id}
       </div>`
-        ).join('');
-    }
+    ).join('');
+}
 
-    function setAccFilter(id) {
-      activeFilter = id;
-      renderAccTabs();
-      updateAccountBar();
-      renderChatList();
-    }
+function setAccFilter(id) {
+  activeFilter = id;
+  renderAccTabs();
+  updateAccountBar();
+  renderChatList();
+}
 
-    // ── Load chats ────────────────────────────────────────────────────────────────
-    let chatsLoading = false;
-    async function loadChats() {
-      if (chatsLoading) return;
-      chatsLoading = true;
-      document.getElementById('chat-list').innerHTML = '<div class="spinner"></div>';
-      try {
-        const r = await fetch('/chats');
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        allChats = await r.json();
-        renderChatList();
-        loadAvatarsBatch(allChats);
-      } catch (e) {
-        document.getElementById('chat-list').innerHTML = '<p class="empty-list">Erro: ' + e.message + '</p>';
-      } finally { chatsLoading = false; }
-    }
+// ── Load chats ────────────────────────────────────────────────────────────────
+let chatsLoading = false;
+async function loadChats() {
+  if (chatsLoading) return;
+  chatsLoading = true;
+  document.getElementById('chat-list').innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch('/chats');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    allChats = await r.json();
+    renderChatList();
+    loadAvatarsBatch(allChats);
+  } catch (e) {
+    document.getElementById('chat-list').innerHTML = '<p class="empty-list">Erro: ' + e.message + '</p>';
+  } finally { chatsLoading = false; }
+}
 
-    function renderChatList() {
-      const q = document.getElementById('search-input')?.value?.toLowerCase() || '';
-      const list = document.getElementById('chat-list');
+function renderChatList() {
+  const q    = document.getElementById('search-input')?.value?.toLowerCase() || '';
+  const list = document.getElementById('chat-list');
 
-      let chats = allChats;
-      if (activeFilter !== 'all') chats = chats.filter(c => c.accountId === activeFilter);
-      if (q) chats = chats.filter(c => (c.name || '').toLowerCase().includes(q));
+  let chats = allChats;
+  if (activeFilter !== 'all') chats = chats.filter(c => c.accountId === activeFilter);
+  if (q) chats = chats.filter(c => (c.name||'').toLowerCase().includes(q));
 
-      if (!chats.length) { list.innerHTML = '<p class="empty-list">Nenhuma conversa</p>'; return; }
+  if (!chats.length) { list.innerHTML = '<p class="empty-list">Nenhuma conversa</p>'; return; }
 
-      list.innerHTML = chats.map(c => {
-        const url = avatarCache[c.id] || null;
-        const img = url ? `<img src="${url}" onerror="this.style.display='none'"/>` : '';
-        const badge = Object.keys(accountStates).length > 1
-          ? `<div class="acc-badge" style="background:${accColor(c.accountId)}">${c.accountId.replace('acc', '')}</div>` : '';
-        const preview = c.lastMessage
-          ? (c.lastMessage.fromMe ? '<span style="color:var(--accent)">Voce: </span>' : '') + esc(c.lastMessage.body || 'Midia')
-          : '';
-        const safeId = c.id.replace(/[^a-zA-Z0-9_-]/g, '_');
-        return `
-      <div class="chat-item${activeChat?.id === c.id ? ' active' : ''}" onclick="openChat(${JSON.stringify(c.id)})">
+  list.innerHTML = chats.map(c => {
+    const url   = avatarCache[c.id] || null;
+    const img   = url ? `<img src="${url}" onerror="this.style.display='none'"/>` : '';
+    const badge = Object.keys(accountStates).length > 1
+      ? `<div class="acc-badge" style="background:${accColor(c.accountId)}">${c.accountId.replace('acc','')}</div>` : '';
+    const preview = c.lastMessage
+      ? (c.lastMessage.fromMe ? '<span style="color:var(--accent)">Voce: </span>' : '') + esc(c.lastMessage.body||'Midia')
+      : '';
+    const safeId = c.id.replace(/[^a-zA-Z0-9_-]/g,'_');
+    return `
+      <div class="chat-item${activeChat?.id===c.id?' active':''}" onclick="openChat(${JSON.stringify(c.id)})">
         <div class="avatar" id="av-${safeId}" style="background:${avatarColor(c.name)}">${img}${initials(c.name)}${badge}</div>
         <div class="chat-info">
           <div class="chat-row1">
-            <span class="chat-name">${esc(c.name || c.id)}</span>
+            <span class="chat-name">${esc(c.name||c.id)}</span>
             <span class="chat-time">${formatTime(c.lastMessage?.timestamp)}</span>
           </div>
           <div class="chat-row2">
             <span class="chat-preview">${preview}</span>
-            ${c.unreadCount > 0 ? `<span class="unread-badge">${c.unreadCount}</span>` : ''}
+            ${c.unreadCount>0?`<span class="unread-badge">${c.unreadCount}</span>`:''}
           </div>
         </div>
       </div>`;
-      }).join('');
-    }
+  }).join('');
+}
 
-    function filterChats(q) { renderChatList(); }
+function filterChats(q) { renderChatList(); }
 
-    // ── Avatares em lotes ─────────────────────────────────────────────────────────
-    async function loadAvatarsBatch(chats) {
-      const batch = 5;
-      for (let i = 0; i < chats.length; i += batch) {
-        await Promise.all(chats.slice(i, i + batch).map(async c => {
-          if (avatarCache[c.id] !== undefined) return;
-          try {
-            const r = await fetch('/avatar/' + encodeURIComponent(c.id));
-            const d = await r.json();
-            avatarCache[c.id] = d.url || null;
-            if (d.url) {
-              const safeId = c.id.replace(/[^a-zA-Z0-9_-]/g, '_');
-              const el = document.getElementById('av-' + safeId);
-              if (el) { el.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>${initials(c.name)}`; }
-            }
-          } catch (_) { avatarCache[c.id] = null; }
-        }));
-        await new Promise(r => setTimeout(r, 120));
-      }
-    }
+// ── Avatares em lotes ─────────────────────────────────────────────────────────
+async function loadAvatarsBatch(chats) {
+  const batch = 5;
+  for (let i=0; i<chats.length; i+=batch) {
+    await Promise.all(chats.slice(i, i+batch).map(async c => {
+      if (avatarCache[c.id] !== undefined) return;
+      try {
+        const r = await fetch('/avatar/' + encodeURIComponent(c.id));
+        const d = await r.json();
+        avatarCache[c.id] = d.url || null;
+        if (d.url) {
+          const safeId = c.id.replace(/[^a-zA-Z0-9_-]/g,'_');
+          const el = document.getElementById('av-' + safeId);
+          if (el) { el.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>${initials(c.name)}`; }
+        }
+      } catch(_) { avatarCache[c.id] = null; }
+    }));
+    await new Promise(r => setTimeout(r, 120));
+  }
+}
 
-    // ── Open chat ─────────────────────────────────────────────────────────────────
-    async function openChat(chatId) {
-      activeChat = allChats.find(c => c.id === chatId);
-      if (!activeChat) return;
-      renderChatList();
+// ── Open chat ─────────────────────────────────────────────────────────────────
+async function openChat(chatId) {
+  activeChat = allChats.find(c => c.id === chatId);
+  if (!activeChat) return;
+  renderChatList();
 
-      const area = document.getElementById('chat-area');
-      const url = avatarCache[chatId] || null;
+  const area = document.getElementById('chat-area');
+  const url  = avatarCache[chatId] || null;
 
-      ['welcome-screen', 'chat-header', 'messages-area', 'input-area'].forEach(id => {
-        document.getElementById(id)?.remove();
-      });
+  ['welcome-screen','chat-header','messages-area','input-area'].forEach(id => {
+    document.getElementById(id)?.remove();
+  });
 
-      const header = document.createElement('div');
-      header.id = 'chat-header';
-      header.onclick = () => openContactPanel(chatId);
-      header.innerHTML = `
+  const header = document.createElement('div');
+  header.id = 'chat-header';
+  header.onclick = () => openContactPanel(chatId);
+  header.innerHTML = `
     ${avatarEl(activeChat.name, url, '', activeChat.accountId)}
     <div id="header-info">
-      <div id="header-name">${esc(activeChat.name || chatId)}</div>
+      <div id="header-name">${esc(activeChat.name||chatId)}</div>
       <div id="header-sub">${activeChat.accountId} &middot; clique para informacoes</div>
     </div>`;
-      area.insertBefore(header, document.getElementById('contact-panel'));
+  area.insertBefore(header, document.getElementById('contact-panel'));
 
-      const msgArea = document.createElement('div');
-      msgArea.id = 'messages-area';
-      msgArea.innerHTML = '<div class="spinner"></div>';
-      area.insertBefore(msgArea, document.getElementById('contact-panel'));
+  const msgArea = document.createElement('div');
+  msgArea.id = 'messages-area';
+  msgArea.innerHTML = '<div class="spinner"></div>';
+  area.insertBefore(msgArea, document.getElementById('contact-panel'));
 
-      const inputArea = document.createElement('div');
-      inputArea.id = 'input-area';
-      inputArea.innerHTML = `
+  const inputArea = document.createElement('div');
+  inputArea.id = 'input-area';
+  inputArea.innerHTML = `
     <textarea id="msg-input" rows="1" placeholder="Digite uma mensagem"
       oninput="autoResize(this)" onkeydown="handleKey(event)"></textarea>
     <button id="send-btn" onclick="sendMessage()">
@@ -1224,85 +603,85 @@
         <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>`;
-      area.insertBefore(inputArea, document.getElementById('contact-panel'));
+  area.insertBefore(inputArea, document.getElementById('contact-panel'));
 
-      await loadMessages(chatId);
-      document.getElementById('msg-input')?.focus();
-    }
+  await loadMessages(chatId);
+  document.getElementById('msg-input')?.focus();
+}
 
-    async function loadMessages(chatId) {
-      const area = document.getElementById('messages-area');
-      if (!area) return;
-      try {
-        const r = await fetch('/messages/' + encodeURIComponent(chatId));
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const msgs = await r.json();
-        area.innerHTML = '';
-        let lastDay = null;
-        msgs.forEach(m => {
-          const day = m.timestamp ? new Date(m.timestamp * 1000).toDateString() : null;
-          if (day && day !== lastDay) {
-            lastDay = day;
-            const d = document.createElement('div');
-            d.className = 'msg-day-divider';
-            d.innerHTML = '<span>' + formatDay(m.timestamp) + '</span>';
-            area.appendChild(d);
-          }
-          appendMessage(m, area);
-        });
-        scrollBottom();
-      } catch (e) {
-        if (area) area.innerHTML = '<p class="empty-list">Erro ao carregar mensagens</p>';
+async function loadMessages(chatId) {
+  const area = document.getElementById('messages-area');
+  if (!area) return;
+  try {
+    const r = await fetch('/messages/' + encodeURIComponent(chatId));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const msgs = await r.json();
+    area.innerHTML = '';
+    let lastDay = null;
+    msgs.forEach(m => {
+      const day = m.timestamp ? new Date(m.timestamp*1000).toDateString() : null;
+      if (day && day !== lastDay) {
+        lastDay = day;
+        const d = document.createElement('div');
+        d.className = 'msg-day-divider';
+        d.innerHTML = '<span>' + formatDay(m.timestamp) + '</span>';
+        area.appendChild(d);
       }
-    }
+      appendMessage(m, area);
+    });
+    scrollBottom();
+  } catch(e) {
+    if (area) area.innerHTML = '<p class="empty-list">Erro ao carregar mensagens</p>';
+  }
+}
 
-    function appendMessage(msg, container) {
-      const area = container || document.getElementById('messages-area');
-      if (!area) return;
-      const div = document.createElement('div');
-      div.className = 'msg-bubble ' + (msg.fromMe ? 'out' : 'in');
-      if (msg.id) div.id = 'msg-' + msg.id;
-      const time = msg.timestamp
-        ? new Date(msg.timestamp * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
-      div.innerHTML = `
+function appendMessage(msg, container) {
+  const area = container || document.getElementById('messages-area');
+  if (!area) return;
+  const div = document.createElement('div');
+  div.className = 'msg-bubble ' + (msg.fromMe ? 'out' : 'in');
+  if (msg.id) div.id = 'msg-' + msg.id;
+  const time = msg.timestamp
+    ? new Date(msg.timestamp*1000).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+  div.innerHTML = `
     <span>${esc(msg.body)}</span>
     <div class="msg-meta">
       <span class="msg-time">${time}</span>
       ${msg.fromMe ? tick(msg.ack) : ''}
     </div>`;
-      area.appendChild(div);
-    }
+  area.appendChild(div);
+}
 
-    function scrollBottom() {
-      const a = document.getElementById('messages-area');
-      if (a) a.scrollTop = a.scrollHeight;
-    }
+function scrollBottom() {
+  const a = document.getElementById('messages-area');
+  if (a) a.scrollTop = a.scrollHeight;
+}
 
-    // ── Contact panel ─────────────────────────────────────────────────────────────
-    async function openContactPanel(chatId) {
-      const panel = document.getElementById('contact-panel');
-      const body = document.getElementById('cp-body');
-      panel.classList.add('open');
-      body.innerHTML = '<div class="spinner"></div>';
+// ── Contact panel ─────────────────────────────────────────────────────────────
+async function openContactPanel(chatId) {
+  const panel = document.getElementById('contact-panel');
+  const body  = document.getElementById('cp-body');
+  panel.classList.add('open');
+  body.innerHTML = '<div class="spinner"></div>';
 
-      const chat = allChats.find(c => c.id === chatId);
-      const url = avatarCache[chatId] || null;
+  const chat = allChats.find(c => c.id === chatId);
+  const url  = avatarCache[chatId] || null;
 
-      let contact = contactCache[chatId];
-      if (!contact) {
-        try {
-          const r = await fetch('/contact/' + encodeURIComponent(chatId));
-          contact = await r.json();
-          contactCache[chatId] = contact;
-        } catch (_) { }
-      }
+  let contact = contactCache[chatId];
+  if (!contact) {
+    try {
+      const r = await fetch('/contact/' + encodeURIComponent(chatId));
+      contact = await r.json();
+      contactCache[chatId] = contact;
+    } catch(_) {}
+  }
 
-      const name = contact?.name || chat?.name || chatId;
-      const number = contact?.number || chatId.split(':').pop().split('@')[0];
-      const about = contact?.about || '';
-      const accId = chat?.accountId || '';
+  const name   = contact?.name || chat?.name || chatId;
+  const number = contact?.number || chatId.split(':').pop().split('@')[0];
+  const about  = contact?.about || '';
+  const accId  = chat?.accountId || '';
 
-      body.innerHTML = `
+  body.innerHTML = `
     <div class="cp-cover">
       ${avatarEl(name, url, 'lg')}
       <h2>${esc(name)}</h2>
@@ -1317,60 +696,59 @@
       <div class="cp-field"><label>Tipo</label><span>${chat?.isGroup ? 'Grupo' : 'Contato'}</span></div>
     </div>`;
 
-      if (!url) {
-        fetch('/avatar/' + encodeURIComponent(chatId)).then(r => r.json()).then(d => {
-          if (d.url) {
-            avatarCache[chatId] = d.url;
-            body.querySelectorAll('.avatar').forEach(av => {
-              av.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>${initials(name)}`;
-            });
-          }
-        }).catch(() => { });
-      }
-    }
-
-    function closeContactPanel() {
-      document.getElementById('contact-panel').classList.remove('open');
-    }
-
-    // ── Send ──────────────────────────────────────────────────────────────────────
-    async function sendMessage() {
-      if (!activeChat) return;
-      const input = document.getElementById('msg-input');
-      const body = input.value.trim();
-      if (!body) return;
-      input.value = ''; autoResize(input);
-      const btn = document.getElementById('send-btn');
-      btn.disabled = true;
-      try {
-        await fetch('/send', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: activeChat.id, body })
+  if (!url) {
+    fetch('/avatar/' + encodeURIComponent(chatId)).then(r=>r.json()).then(d => {
+      if (d.url) {
+        avatarCache[chatId] = d.url;
+        body.querySelectorAll('.avatar').forEach(av => {
+          av.innerHTML = `<img src="${d.url}" onerror="this.style.display='none'"/>${initials(name)}`;
         });
-      } catch (e) { console.error(e); }
-      finally { btn.disabled = false; input.focus(); }
-    }
-
-    function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
-    function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
-
-    // ── Init ──────────────────────────────────────────────────────────────────────
-    // Busca status inicial via REST (caso socket demore)
-    fetch('/status').then(r => r.json()).then(states => {
-      Object.entries(states).forEach(([id, s]) => {
-        accountStates[id] = s;
-      });
-      updateAccountBar();
-      updateSetupCards();
-      const anyConnected = Object.values(accountStates).some(s => s.ready);
-      if (anyConnected) {
-        document.getElementById('setup-screen').style.display = 'none';
-        document.getElementById('main').classList.add('visible');
-        loadChats();
-        renderAccTabs();
       }
-    }).catch(() => { });
-  </script>
-</body>
+    }).catch(()=>{});
+  }
+}
 
+function closeContactPanel() {
+  document.getElementById('contact-panel').classList.remove('open');
+}
+
+// ── Send ──────────────────────────────────────────────────────────────────────
+async function sendMessage() {
+  if (!activeChat) return;
+  const input = document.getElementById('msg-input');
+  const body  = input.value.trim();
+  if (!body) return;
+  input.value = ''; autoResize(input);
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  try {
+    await fetch('/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: activeChat.id, body })
+    });
+  } catch(e) { console.error(e); }
+  finally { btn.disabled = false; input.focus(); }
+}
+
+function handleKey(e) { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// Busca status inicial via REST (caso socket demore)
+fetch('/status').then(r=>r.json()).then(states => {
+  Object.entries(states).forEach(([id, s]) => {
+    accountStates[id] = s;
+  });
+  updateAccountBar();
+  updateSetupCards();
+  const anyConnected = Object.values(accountStates).some(s => s.ready);
+  if (anyConnected) {
+    document.getElementById('setup-screen').style.display = 'none';
+    document.getElementById('main').classList.add('visible');
+    loadChats();
+    renderAccTabs();
+  }
+}).catch(()=>{});
+</script>
+</body>
 </html>
