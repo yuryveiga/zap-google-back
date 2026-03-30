@@ -3,8 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel WhatsApp</title>
+  <title>WhatsApp Multi-Device</title>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <style>
     :root {
@@ -16,12 +15,13 @@
     }
 
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: sans-serif;
       background: var(--bg);
       color: var(--text);
       margin: 0;
       display: flex;
       height: 100vh;
+      overflow: hidden;
     }
 
     #sidebar {
@@ -32,18 +32,17 @@
     }
 
     .header {
-      padding: 16px;
+      padding: 15px;
       background: var(--panel);
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
-    .search-bar {
-      padding: 8px;
+    .search-area {
+      padding: 10px;
       display: flex;
       gap: 8px;
-      background: var(--bg);
     }
 
     input {
@@ -56,17 +55,16 @@
       outline: none;
     }
 
-    .btn-icon {
+    .btn-action {
       background: var(--input);
       border: none;
       color: #8696a0;
-      padding: 8px 12px;
+      padding: 8px;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 18px;
     }
 
-    .btn-icon:hover {
+    .btn-action:hover {
       color: white;
     }
 
@@ -79,16 +77,10 @@
       padding: 15px;
       border-bottom: 1px solid #222;
       cursor: pointer;
-      transition: 0.2s;
     }
 
     .chat-item:hover {
       background: #2a3942;
-    }
-
-    .chat-item.active {
-      background: #2a3942;
-      border-left: 4px solid var(--accent);
     }
 
     #main {
@@ -96,17 +88,16 @@
       display: flex;
       flex-direction: column;
       background: #0b141a;
-      position: relative;
     }
 
-    /* Overlay para QR Code */
-    #qr-overlay {
+    /* Telas Sobrepostas (Modais) */
+    .overlay {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.85);
+      background: rgba(0, 0, 0, 0.9);
       display: none;
       flex-direction: column;
       align-items: center;
@@ -114,12 +105,12 @@
       z-index: 1000;
     }
 
-    #qr-card {
-      background: white;
+    .card {
+      background: var(--panel);
       padding: 30px;
       border-radius: 15px;
       text-align: center;
-      color: #333;
+      max-width: 400px;
     }
 
     .loader {
@@ -129,7 +120,7 @@
       width: 24px;
       height: 24px;
       animation: spin 1s linear infinite;
-      margin: 20px auto;
+      margin: 10px auto;
     }
 
     @keyframes spin {
@@ -142,32 +133,33 @@
 
 <body>
 
-  <div id="qr-overlay">
-    <div id="qr-card">
-      <h3 id="qr-title">Conectar WhatsApp</h3>
-      <div id="qr-container" style="margin: 20px 0;"></div>
-      <p style="font-size: 14px; color: #666;">Abra o WhatsApp > Aparelhos conectados > Conectar um aparelho</p>
-      <button onclick="document.getElementById('qr-overlay').style.display='none'"
-        style="margin-top:15px; cursor:pointer;">Fechar</button>
+  <div id="overlay-conn" class="overlay">
+    <div class="card">
+      <h3 id="conn-title">Conectar Instância</h3>
+      <div id="qr-container" style="background:white; padding:10px; margin:20px 0; display:inline-block;"></div>
+      <p id="conn-status">Aguardando QR Code...</p>
+      <button onclick="closeConn()" style="margin-top:20px; padding:10px 20px;">Voltar</button>
     </div>
   </div>
 
   <div id="sidebar">
     <div class="header">
       <span>Conversas</span>
-      <div id="status-dot" style="width: 12px; height: 12px; border-radius: 50%; background: gray;"></div>
+      <button class="btn-action" onclick="showAccounts()" title="Gerenciar Conexões">⚙️ Conexões</button>
     </div>
-    <div class="search-bar">
+    <div class="search-area">
       <input type="text" id="search" placeholder="Pesquisar..." oninput="renderChats()">
-      <button class="btn-icon" onclick="loadChats()" title="Atualizar conversas">↻</button>
+      <button class="btn-action" onclick="loadChats()">↻</button>
     </div>
-    <div id="chat-list"></div>
+    <div id="chat-list">
+      <p style="text-align:center; color:#8696a0; margin-top:20px;">Carregando...</p>
+    </div>
   </div>
 
   <div id="main">
-    <div id="welcome" style="margin: auto; text-align: center; color: #8696a0;">
-      <h2>WhatsApp Multi-Device</h2>
-      <p>Selecione uma conversa para enviar mensagens.</p>
+    <div style="margin: auto; text-align: center; color: #8696a0;">
+      <h2>WhatsApp Web Multi-Device</h2>
+      <p>Conecte suas contas para começar.</p>
     </div>
   </div>
 
@@ -182,51 +174,43 @@
       accountStates[accountId] = data;
 
       if (status === 'qr' && qr) {
-        document.getElementById('qr-overlay').style.display = 'flex';
-        document.getElementById('qr-container').innerHTML = `<img src="${qr}" style="width:250px;">`;
-        document.getElementById('qr-title').innerText = `Conectar: ${accountId}`;
+        document.getElementById('overlay-conn').style.display = 'flex';
+        document.getElementById('qr-container').innerHTML = `<img src="${qr}" style="width:200px;">`;
+        document.getElementById('conn-status').innerText = `Escaneie para: ${accountId}`;
       }
 
       if (!wasReady && ready) {
-        document.getElementById('qr-overlay').style.display = 'none';
-        document.getElementById('chat-list').innerHTML = '<div class="loader"></div><p style="text-align:center; font-size:12px; color:#8696a0;">Sincronizando mensagens...</p>';
-        setTimeout(loadChats, 3500); // Espera 3.5s para o cache carregar
+        document.getElementById('overlay-conn').style.display = 'none';
+        document.getElementById('chat-list').innerHTML = '<div class="loader"></div><p style="text-align:center">Sincronizando...</p>';
+        setTimeout(loadChats, 3500);
       }
-
-      updateStatusUI();
     });
 
-    function updateStatusUI() {
-      const isAnyReady = Object.values(accountStates).some(s => s.ready);
-      document.getElementById('status-dot').style.background = isAnyReady ? '#00a884' : 'orange';
-    }
+    function closeConn() { document.getElementById('overlay-conn').style.display = 'none'; }
+    function showAccounts() { alert("As instâncias são automáticas. Se precisar de um novo QR Code, ele aparecerá na tela."); }
 
     async function loadChats() {
       try {
         const res = await fetch('/chats');
         allChats = await res.json();
         renderChats();
-      } catch (err) { console.error("Erro ao carregar", err); }
+      } catch (e) { console.log("Erro ao carregar chats"); }
     }
 
     function renderChats() {
-      const term = document.getElementById('search').value.toLowerCase();
       const list = document.getElementById('chat-list');
-      const filtered = allChats.filter(c => c.name.toLowerCase().includes(term));
-
-      list.innerHTML = filtered.map(c => `
-        <div class="chat-item" onclick="console.log('Chat ID: ${c.id}')">
-          <div style="font-weight: 500;">${c.name}</div>
-          <div style="font-size: 11px; color: #8696a0;">${c.accountId}</div>
+      list.innerHTML = allChats.map(c => `
+        <div class="chat-item">
+          <strong>${c.name}</strong><br>
+          <small style="color:#8696a0">${c.accountId}</small>
         </div>
       `).join('');
     }
 
-    // Inicialização ao abrir a página
-    fetch('/status').then(r => r.json()).then(states => {
-      accountStates = states;
-      updateStatusUI();
-      if (Object.values(states).some(s => s.ready)) loadChats();
+    // Init
+    fetch('/status').then(r => r.json()).then(s => {
+      accountStates = s;
+      if (Object.values(s).some(acc => acc.ready)) loadChats();
     });
   </script>
 </body>
