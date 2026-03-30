@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -14,6 +14,13 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 const PORT = process.env.PORT || 3000;
+
+// Captura logs em memória para debug remoto
+const serverLogs = [];
+const _log = console.log.bind(console);
+const _err = console.error.bind(console);
+console.log = (...a) => { serverLogs.push({ t: new Date().toISOString(), level: 'info', msg: a.join(' ') }); if (serverLogs.length > 200) serverLogs.shift(); _log(...a); };
+console.error = (...a) => { serverLogs.push({ t: new Date().toISOString(), level: 'error', msg: a.join(' ') }); if (serverLogs.length > 200) serverLogs.shift(); _err(...a); };
 
 app.use(cors());
 app.use(express.json());
@@ -186,6 +193,10 @@ app.get('/', (req, res) => {
 
 app.get('/status', (req, res) => {
   res.json(clientStates);
+});
+
+app.get('/logs', (req, res) => {
+  res.json(serverLogs);
 });
 
 app.get('/get-qr', (req, res) => {
