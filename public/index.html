@@ -1219,7 +1219,7 @@
       updateConnGrid();
       try {
         await fetch('/initialize/' + accountId, { method: 'POST' });
-      } catch (e) { alert('Erro ao inicializar conta'); }
+      } catch(e) { alert('Erro ao inicializar conta'); }
     }
 
     // ── Socket ────────────────────────────────────────────────────────────────────
@@ -1273,7 +1273,7 @@
               <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:20px;text-align:center">
                 <div style="width:64px;height:64px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:30px">&#128247;</div>
                 <div>
-                  <p style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Slot ${id.replace('acc', '')}</p>
+                  <p style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Slot ${id.replace('acc','')}</p>
                   <p style="font-size:13px;color:var(--text-secondary)">Nenhuma conta conectada</p>
                 </div>
                 <button class="btn-add" onclick="openAddModal('${id}')" style="margin:0">+ Adicionar WhatsApp</button>
@@ -1288,7 +1288,7 @@
           connected: 'Conectado', disconnected: 'Desconectado'
         };
         const label = labels[s.status] || s.status;
-        const isLoading = ['starting', 'initializing', 'loading', 'authenticated'].includes(s.status);
+        const isLoading = ['starting','initializing','loading','authenticated'].includes(s.status);
 
         const qrHtml = s.qr
           ? `<div class="conn-qr-box"><img src="${s.qr}"/></div>`
@@ -1303,7 +1303,7 @@
               <h3>${esc(s.name || id)}</h3>
               <span class="conn-status-badge ${s.status}">${label}</span>
             </div>
-            ${isLoading ? `<div class="conn-loading-bar"><div class="conn-loading-fill" style="width:${s.loadingPercent || 15}%"></div></div>` : ''}
+            ${isLoading ? `<div class="conn-loading-bar"><div class="conn-loading-fill" style="width:${s.loadingPercent||15}%"></div></div>` : ''}
             <div class="conn-qr-area">
               ${qrHtml}
               <div class="conn-info">
