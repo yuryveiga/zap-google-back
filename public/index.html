@@ -787,6 +787,7 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
+      min-height: 250px;
     }
 
     .conn-card-header {
@@ -837,6 +838,7 @@
       gap: 20px;
       flex-wrap: wrap;
       justify-content: center;
+      flex: 1;
     }
 
     .conn-qr-box {
@@ -878,6 +880,9 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
+      align-items: center;
+      text-align: center;
+      justify-content: center;
     }
 
     .conn-info p {
@@ -911,12 +916,32 @@
       font-size: 13px;
       cursor: pointer;
       transition: all var(--transition);
-      align-self: flex-start;
+      align-self: center;
+      margin-top: auto;
     }
 
     .btn-danger:hover {
       background: #d9534f;
       color: #fff;
+    }
+
+    /* Slots Vazios */
+    .empty-slot {
+      border: 2px dashed var(--border);
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .empty-slot:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(0, 168, 132, 0.05);
     }
 
     /* Botão Adicionar */
@@ -1055,14 +1080,12 @@
 <body>
   <div id="app">
 
-    <!-- Nav bar -->
     <div id="nav-bar">
       <div class="nav-btn active" id="nav-chats" onclick="showPage('chats')" title="Conversas">&#128172;</div>
       <div class="nav-divider"></div>
       <div class="nav-btn settings" id="nav-settings" onclick="showPage('settings')" title="Configuracoes">&#9881;</div>
     </div>
 
-    <!-- Página: Conversas -->
     <div class="page active" id="page-chats">
       <div id="sidebar">
         <div id="sidebar-header">
@@ -1085,33 +1108,31 @@
               fill="#00a884" />
           </svg>
           <h3>WhatsApp Web</h3>
-          <p>Selecione uma conversa para comecar</p>
+          <p>Selecione uma conversa para começar</p>
         </div>
         <div id="contact-panel">
           <div id="cp-header">
             <button class="close-btn" onclick="closeContactPanel()">&#x2715;</button>
-            <span>Informacoes do contato</span>
+            <span>Informações do contato</span>
           </div>
           <div id="cp-body"></div>
         </div>
       </div>
     </div>
 
-    <!-- Página: Configurações -->
     <div class="page" id="page-settings">
       <div id="settings-page">
-        <div class="settings-header">Configuracoes</div>
+        <div class="settings-header">Configurações</div>
         <div class="settings-layout">
           <div class="settings-menu">
             <div class="settings-menu-item active" onclick="showSettingsSection('conexao')">
-              <span>&#128279;</span> Conexao
+              <span>&#128279;</span> Conexão
             </div>
           </div>
           <div class="settings-body">
-            <!-- Seção: Conexão -->
             <div class="settings-section active" id="section-conexao">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
-                <h2>Conexao das contas</h2>
+                <h2>Conexão das contas</h2>
                 <button class="btn-add" onclick="openAddModal()"><span>+</span> Adicionar WhatsApp</button>
               </div>
               <div class="conn-grid" id="conn-grid"></div>
@@ -1121,13 +1142,12 @@
       </div>
     </div>
 
-    <!-- Modal Adicionar -->
     <div class="modal-overlay" id="modal-add">
       <div class="modal">
         <h3>Nova Conexão</h3>
         <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px">Insira um nome para identificar esta
           conta.</p>
-        <input type="text" id="new-acc-name" placeholder="Ex: WhatsApp Empresa" />
+        <input type="text" id="new-acc-name" placeholder="Ex: WhatsApp de Vendas" />
         <div class="modal-btns">
           <button class="btn-cancel" onclick="closeAddModal()">Cancelar</button>
           <button class="btn-ok" onclick="confirmAddAccount()">Gerar QR Code</button>
@@ -1144,7 +1164,6 @@
     let activeChat = null;
     let activeFilter = 'all';
     let avatarCache = {};
-    let contactCache = {};
 
     const COLORS = ['#e74c3c', '#e67e22', '#2ecc71', '#3498db', '#9b59b6', '#1abc9c', '#e91e63', '#00bcd4', '#ff5722', '#607d8b'];
     const ACC_COLORS = { acc1: '#00a884', acc2: '#3498db', acc3: '#9b59b6', acc4: '#e74c3c' };
@@ -1160,14 +1179,6 @@
       const y = new Date(now); y.setDate(now.getDate() - 1);
       if (d.toDateString() === y.toDateString()) return 'Ontem';
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-    }
-    function formatDay(ts) {
-      if (!ts) return '';
-      const d = new Date(ts * 1000), now = new Date();
-      if (d.toDateString() === now.toDateString()) return 'Hoje';
-      const y = new Date(now); y.setDate(now.getDate() - 1);
-      if (d.toDateString() === y.toDateString()) return 'Ontem';
-      return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
     }
     function tick(ack) {
       if (ack === 3) return '<span class="msg-tick read">&#10003;&#10003;</span>';
@@ -1204,6 +1215,7 @@
       const name = document.getElementById('new-acc-name').value.trim();
       if (!name) return alert('Por favor, insira um nome.');
 
+      // Gera um id sequencial novo
       const accountId = 'acc' + (Object.keys(accountStates).length + 1);
 
       try {
@@ -1222,13 +1234,22 @@
     }
 
     // ── Socket ────────────────────────────────────────────────────────────────────
-    socket.on('status_update', ({ accountId, status, qr, ready, loadingPercent, name }) => {
+    socket.on('status_update', (data) => {
+      const { accountId, status, qr, ready, loadingPercent, name } = data;
+
+      // Checa se o status anterior não estava pronto
+      const wasReady = accountStates[accountId] ? accountStates[accountId].ready : false;
+
       accountStates[accountId] = { status, qr, ready, loadingPercent, name: name || accountId };
       updateNavDots();
       updateConnGrid();
       renderAccTabs();
-      const anyConnected = Object.values(accountStates).some(s => s.ready);
-      if (anyConnected && allChats.length === 0) loadChats();
+
+      // Lógica de REDIRECIONAMENTO AUTOMÁTICO após sucesso na autenticação/leitura QR
+      if (!wasReady && ready) {
+        showPage('chats'); // Volta para a aba conversas
+        loadChats();       // Carrega os chats
+      }
     });
 
     socket.on('new_message', (msg) => {
@@ -1260,7 +1281,11 @@
     // ── Conexão grid ──────────────────────────────────────────────────────────────
     function updateConnGrid() {
       const grid = document.getElementById('conn-grid');
-      grid.innerHTML = Object.entries(accountStates).map(([id, s]) => {
+      let html = '';
+
+      const accounts = Object.entries(accountStates);
+
+      html += accounts.map(([id, s]) => {
         const labels = {
           starting: 'Iniciando...', initializing: 'Inicializando...', authenticated: 'Autenticando...',
           loading: `Carregando ${s.loadingPercent || 0}%`, pending: 'Aguardando leitura do QR',
@@ -1286,16 +1311,30 @@
           ${qrHtml}
           <div class="conn-info">
             ${isLoading ? `<div class="conn-loading-bar"><div class="conn-loading-fill" style="width:${s.loadingPercent || 15}%"></div></div>` : ''}
-            <p>${s.status === 'pending' ? 'Escaneie o QR Code no seu WhatsApp para conectar.' : 'Sua conta está pronta para uso.'}</p>
-            <button class="btn-danger" onclick="resetAccount('${id}')">Resetar Sessão</button>
+            <p>${s.status === 'pending' ? 'Escaneie o QR Code no seu WhatsApp para conectar.' : (s.status === 'connected' ? 'Sua conta está pronta para uso.' : 'Aguarde um momento...')}</p>
+            ${s.status !== 'connected' && s.status !== 'pending' && !isLoading ? `<button class="btn-danger" onclick="resetAccount('${id}')">Reiniciar Conexão</button>` : ''}
+            ${s.status === 'connected' ? `<button class="btn-danger" style="color:#8696a0; border-color:#8696a0;" onclick="resetAccount('${id}')">Desconectar</button>` : ''}
           </div>
         </div>
       </div>`;
       }).join('');
+
+      // Garante no mínimo 2 slots na interface (preenchidos ou vazios)
+      const emptySlots = Math.max(2 - accounts.length, 0);
+      for (let i = 0; i < emptySlots; i++) {
+        html += `
+        <div class="conn-card empty-slot" onclick="openAddModal()">
+          <div style="font-size: 40px; margin-bottom: 10px;">+</div>
+          <p style="font-size: 14px; font-weight: 600;">Adicionar WhatsApp</p>
+        </div>
+        `;
+      }
+
+      grid.innerHTML = html;
     }
 
     async function resetAccount(id) {
-      if (!confirm(`Resetar sessao de ${id}? Precisara escanear o QR novamente.`)) return;
+      if (!confirm(`Resetar conexão de ${id}? Precisará escanear o QR novamente.`)) return;
       await fetch(`/reset/${id}`, { method: 'POST' });
     }
 
@@ -1324,7 +1363,7 @@
       let chats = allChats;
       if (activeFilter !== 'all') chats = chats.filter(c => c.accountId === activeFilter);
       if (q) chats = chats.filter(c => (c.name || '').toLowerCase().includes(q));
-      if (!chats.length) { list.innerHTML = '<p class="empty-list">Nenhuma conversa</p>'; return; }
+      if (!chats.length) { list.innerHTML = '<p class="empty-list">Nenhuma conversa encontrada</p>'; return; }
 
       list.innerHTML = chats.map(c => {
         const url = avatarCache[c.id] || null;
@@ -1351,8 +1390,8 @@
 
       const header = document.createElement('div');
       header.id = 'chat-header';
-      header.onclick = () => openContactPanel(chatId);
-      header.innerHTML = `${avatarEl(activeChat.name, null, '', activeChat.accountId)}<div id="header-info"><div id="header-name">${esc(activeChat.name || chatId)}</div><div id="header-sub">${activeChat.accountId} &middot; clique para informacoes</div></div>`;
+      header.onclick = () => alert('Informações de contato não implementadas ainda');
+      header.innerHTML = `${avatarEl(activeChat.name, null, '', activeChat.accountId)}<div id="header-info"><div id="header-name">${esc(activeChat.name || chatId)}</div><div id="header-sub">${activeChat.accountId}</div></div>`;
       area.insertBefore(header, document.getElementById('contact-panel'));
 
       const msgArea = document.createElement('div');
@@ -1402,7 +1441,7 @@
       try { await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: activeChat.id, body }) }); } catch (e) { }
     }
 
-    // ── Init ──────────────────────────────────────────────────────────────────────
+    // ── Init Inicial ──────────────────────────────────────────────────────────────
     fetch('/status').then(r => r.json()).then(states => {
       Object.entries(states).forEach(([id, s]) => { accountStates[id] = s; });
       updateNavDots();

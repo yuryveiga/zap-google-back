@@ -32,16 +32,16 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 
 // ─── Multi-Client Setup ───────────────────────────────────────────────────────
 
-// Carrega contas salvas ou inicia com as padrões
+// Inicia vazio para obrigar os 2 slots vazios na interface
 const SESSIONS_FILE = path.join(process.cwd(), 'sessions.json');
-let ACCOUNTS = ['acc1', 'acc2'];
-let accountNames = { 'acc1': 'WhatsApp 1', 'acc2': 'WhatsApp 2' };
+let ACCOUNTS = [];
+let accountNames = {};
 
 if (fs.existsSync(SESSIONS_FILE)) {
   try {
     const data = fs.readJsonSync(SESSIONS_FILE);
-    ACCOUNTS = data.accounts || ACCOUNTS;
-    accountNames = data.names || accountNames;
+    ACCOUNTS = data.accounts || [];
+    accountNames = data.names || {};
   } catch (e) { console.error('Erro ao carregar sessões:', e.message); }
 }
 
