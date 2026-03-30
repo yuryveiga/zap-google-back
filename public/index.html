@@ -3,6 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WhatsApp Multi</title>
 
   <!-- SOCKET CORRETO -->
@@ -10,121 +11,140 @@
 
   <style>
     body {
+      margin: 0;
+      font-family: Arial;
       background: #111;
       color: #fff;
-      font-family: Arial;
-      text-align: center;
     }
 
-    .container {
+    #app {
       display: flex;
-      gap: 20px;
-      justify-content: center;
-      margin-top: 50px;
+      height: 100vh;
     }
 
-    .card {
-      width: 250px;
-      padding: 20px;
-      border: 1px solid #333;
-      border-radius: 10px;
+    .sidebar {
+      width: 300px;
+      background: #1f2c33;
+      overflow: auto;
     }
 
-    button {
+    .chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .item {
       padding: 10px;
-      margin-top: 10px;
+      border-bottom: 1px solid #333;
       cursor: pointer;
     }
 
-    img {
-      width: 200px;
+    .item:hover {
+      background: #2a3942;
+    }
+
+    .msgs {
+      flex: 1;
+      overflow: auto;
+      padding: 10px;
+    }
+
+    .msg {
+      margin: 5px 0;
+    }
+
+    .me {
+      text-align: right;
+      color: #00a884;
     }
   </style>
 </head>
 
 <body>
 
-  <h1>Conexões WhatsApp</h1>
+  <div id="app">
 
-  <div class="container" id="grid"></div>
+    <div class="sidebar">
+      <button onclick="add('acc1')">Add acc1</button>
+      <button onclick="add('acc2')">Add acc2</button>
+      <div id="chats"></div>
+    </div>
 
-  <!-- MODAL -->
-  <div id="modal" style="display:none;">
-    <input id="name" placeholder="Nome da conta">
-    <button onclick="confirmAdd()">OK</button>
+    <div class="chat">
+      <div id="msgs" class="msgs"></div>
+      <input id="input" placeholder="Mensagem">
+    </div>
+
   </div>
 
   <script>
     const socket = io();
 
-    const SLOTS = ['acc1', 'acc2'];
-    let states = {};
-    let currentSlot = null;
+    let chats = [];
+    let active = null;
 
-    // ─── RENDER ─────────────────────────
-    function render() {
-      const grid = document.getElementById('grid');
-
-      grid.innerHTML = SLOTS.map(id => {
-        const s = states[id];
-
-        if (!s) {
-          return `
-      <div class="card">
-        <h3>${id}</h3>
-        <button onclick="add('${id}')">Adicionar</button>
-      </div>`;
-        }
-
-        return `
-    <div class="card">
-      <h3>${s.name}</h3>
-      <p>${s.status}</p>
-      ${s.qr ? `<img src="${s.qr}"/>` : ''}
-      <button onclick="reset('${id}')">Reset</button>
-    </div>`;
-      }).join('');
+    // ─── LOAD CHATS ─────────────────
+    async function loadChats() {
+      const r = await fetch('/chats');
+      chats = await r.json();
+      renderChats();
     }
 
-    // ─── ADD ────────────────────────────
-    function add(id) {
-      currentSlot = id;
-      document.getElementById('modal').style.display = 'block';
+    function renderChats() {
+      const el = document.getElementById('chats');
+      el.innerHTML = chats.map(c => `
+    <div class="item" onclick="openChat('${c.id}')">
+      ${c.name}
+    </div>
+  `).join('');
     }
 
-    async function confirmAdd() {
-      const name = document.getElementById('name').value;
+    // ─── OPEN CHAT ─────────────────
+    async function openChat(id) {
+      active = id;
 
-      states[currentSlot] = {
-        name,
-        status: 'starting'
-      };
+      const r = await fetch('/messages/' + encodeURIComponent(id));
+      const msgs = await r.json();
 
-      render();
+      const box = document.getElementById('msgs');
 
-      await fetch('/initialize/' + currentSlot, { method: 'POST' });
-
-      document.getElementById('modal').style.display = 'none';
+      box.innerHTML = msgs.map(m => `
+    <div class="msg ${m.fromMe ? 'me' : ''}">
+      ${m.body}
+    </div>
+  `).join('');
     }
 
-    // ─── RESET ──────────────────────────
-    async function reset(id) {
-      await fetch('/reset/' + id, { method: 'POST' });
-    }
+    // ─── SEND ─────────────────
+    document.getElementById('input').addEventListener('keydown', async e => {
+      if (e.key === 'Enter') {
+        const body = e.target.value;
+        e.target.value = '';
 
-    // ─── SOCKET ─────────────────────────
-    socket.on('status_update', data => {
-      states[data.accountId] = data;
-      render();
+        await fetch('/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: active, body })
+        });
+      }
     });
 
-    // ─── INIT ───────────────────────────
-    fetch('/status')
-      .then(r => r.json())
-      .then(data => {
-        states = data;
-        render();
-      });
+    // ─── SOCKET ─────────────────
+    socket.on('new_message', msg => {
+      if (active === msg.accountId + ':' + msg.chatId) {
+        const box = document.getElementById('msgs');
+        box.innerHTML += `<div class="msg ${msg.fromMe ? 'me' : ''}">${msg.body}</div>`;
+      }
+    });
+
+    // ─── INIT ─────────────────
+    fetch('/status').then(() => loadChats());
+
+    // ─── ADD ─────────────────
+    async function add(id) {
+      await fetch('/initialize/' + id, { method: 'POST' });
+    }
   </script>
 
 </body>
