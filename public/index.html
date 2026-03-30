@@ -3,76 +3,50 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>WhatsApp Multi-Device</title>
+  <title>WhatsApp Manager</title>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <style>
     :root {
       --bg: #111b21;
-      --panel: #202c33;
-      --input: #2a3942;
+      --sidebar: #202c33;
       --accent: #00a884;
       --text: #e9edef;
     }
 
-    body {
-      font-family: sans-serif;
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
-      margin: 0;
+    }
+
+    /* Estrutura Principal */
+    #app-container {
       display: flex;
       height: 100vh;
-      overflow: hidden;
+      width: 100vw;
     }
 
     #sidebar {
       width: 350px;
+      border-right: 1px solid #333;
       display: flex;
       flex-direction: column;
-      border-right: 1px solid #333;
+      position: relative;
     }
 
-    .header {
-      padding: 15px;
-      background: var(--panel);
+    #main-content {
+      flex: 1;
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: center;
+      background: #0b141a;
     }
 
-    .search-area {
-      padding: 10px;
-      display: flex;
-      gap: 8px;
-    }
-
-    input {
-      flex: 1;
-      background: var(--input);
-      border: none;
-      padding: 10px;
-      color: white;
-      border-radius: 8px;
-      outline: none;
-    }
-
-    .btn-action {
-      background: var(--input);
-      border: none;
-      color: #8696a0;
-      padding: 8px;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-
-    .btn-action:hover {
-      color: white;
-    }
-
-    #chat-list {
-      flex: 1;
-      overflow-y: auto;
-    }
-
+    /* Estilo dos Chats */
     .chat-item {
       padding: 15px;
       border-bottom: 1px solid #222;
@@ -83,133 +57,176 @@
       background: #2a3942;
     }
 
-    #main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: #0b141a;
+    /* Botão de Configuração no Canto Inferior */
+    #settings-trigger {
+      position: absolute;
+      bottom: 15px;
+      left: 15px;
+      background: #2a3942;
+      border: none;
+      color: white;
+      padding: 10px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
     }
 
-    /* Telas Sobrepostas (Modais) */
-    .overlay {
+    /* Aba de Conexões (Overlay) */
+    #connections-page {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.9);
+      background: var(--bg);
       display: none;
+      flex-direction: column;
+      z-index: 100;
+    }
+
+    .conn-header {
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #333;
+    }
+
+    .slots-container {
+      display: flex;
+      gap: 20px;
+      padding: 40px;
+      justify-content: center;
+    }
+
+    .slot {
+      width: 250px;
+      height: 300px;
+      border: 2px dashed #444;
+      border-radius: 15px;
+      display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
     }
 
-    .card {
-      background: var(--panel);
-      padding: 30px;
-      border-radius: 15px;
-      text-align: center;
-      max-width: 400px;
+    .slot.active {
+      border-style: solid;
+      border-color: var(--accent);
+      background: #1f2c33;
     }
 
-    .loader {
-      border: 3px solid #333;
-      border-top: 3px solid var(--accent);
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      animation: spin 1s linear infinite;
-      margin: 10px auto;
+    .qr-box img {
+      width: 180px;
+      height: 180px;
+      background: white;
+      padding: 5px;
     }
 
-    @keyframes spin {
-      100% {
-        transform: rotate(360deg);
-      }
+    .btn-add {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
     }
   </style>
 </head>
 
 <body>
 
-  <div id="overlay-conn" class="overlay">
-    <div class="card">
-      <h3 id="conn-title">Conectar Instância</h3>
-      <div id="qr-container" style="background:white; padding:10px; margin:20px 0; display:inline-block;"></div>
-      <p id="conn-status">Aguardando QR Code...</p>
-      <button onclick="closeConn()" style="margin-top:20px; padding:10px 20px;">Voltar</button>
+  <div id="app-container">
+    <div id="sidebar">
+      <div style="padding: 15px; background: var(--sidebar); font-weight: bold;">Conversas</div>
+      <div id="chat-list" style="flex:1; overflow-y:auto;">
+        <p style="text-align:center; color:#8696a0; margin-top:20px;">Nenhuma conversa carregada.</p>
+      </div>
+
+      <button id="settings-trigger" onclick="toggleConnections(true)">⚙️</button>
+    </div>
+
+    <div id="main-content">
+      <p style="color: #8696a0;">Selecione um chat ou abra as configurações para conectar.</p>
     </div>
   </div>
 
-  <div id="sidebar">
-    <div class="header">
-      <span>Conversas</span>
-      <button class="btn-action" onclick="showAccounts()" title="Gerenciar Conexões">⚙️ Conexões</button>
+  <div id="connections-page">
+    <div class="conn-header">
+      <h2>Conexões</h2>
+      <button class="btn-add" onclick="addNewInstance()">+ Adicionar WhatsApp</button>
+      <button onclick="toggleConnections(false)"
+        style="background:none; border:none; color:white; cursor:pointer; font-size:24px;">✕</button>
     </div>
-    <div class="search-area">
-      <input type="text" id="search" placeholder="Pesquisar..." oninput="renderChats()">
-      <button class="btn-action" onclick="loadChats()">↻</button>
-    </div>
-    <div id="chat-list">
-      <p style="text-align:center; color:#8696a0; margin-top:20px;">Carregando...</p>
-    </div>
-  </div>
 
-  <div id="main">
-    <div style="margin: auto; text-align: center; color: #8696a0;">
-      <h2>WhatsApp Web Multi-Device</h2>
-      <p>Conecte suas contas para começar.</p>
+    <div class="slots-container">
+      <div id="slot-CONTA_01" class="slot">
+        <p style="color:#666">Slot 1 vazio</p>
+      </div>
+      <div id="slot-CONTA_02" class="slot">
+        <p style="color:#666">Slot 2 vazio</p>
+      </div>
     </div>
   </div>
 
   <script>
     const socket = io();
-    let allChats = [];
     let accountStates = {};
+
+    function toggleConnections(show) {
+      document.getElementById('connections-page').style.display = show ? 'flex' : 'none';
+    }
 
     socket.on('status_update', (data) => {
       const { accountId, status, qr, ready } = data;
-      const wasReady = accountStates[accountId]?.ready || false;
       accountStates[accountId] = data;
+      updateSlotUI(accountId);
 
-      if (status === 'qr' && qr) {
-        document.getElementById('overlay-conn').style.display = 'flex';
-        document.getElementById('qr-container').innerHTML = `<img src="${qr}" style="width:200px;">`;
-        document.getElementById('conn-status').innerText = `Escaneie para: ${accountId}`;
-      }
-
-      if (!wasReady && ready) {
-        document.getElementById('overlay-conn').style.display = 'none';
-        document.getElementById('chat-list').innerHTML = '<div class="loader"></div><p style="text-align:center">Sincronizando...</p>';
-        setTimeout(loadChats, 3500);
+      if (ready) {
+        loadChats();
       }
     });
 
-    function closeConn() { document.getElementById('overlay-conn').style.display = 'none'; }
-    function showAccounts() { alert("As instâncias são automáticas. Se precisar de um novo QR Code, ele aparecerá na tela."); }
+    function updateSlotUI(id) {
+      const slot = document.getElementById(`slot-${id}`);
+      const state = accountStates[id];
 
-    async function loadChats() {
-      try {
-        const res = await fetch('/chats');
-        allChats = await res.json();
-        renderChats();
-      } catch (e) { console.log("Erro ao carregar chats"); }
+      if (state.status === 'qr' && state.qr) {
+        slot.className = "slot active";
+        slot.innerHTML = `<h4>Conectar ${id}</h4><div class="qr-box"><img src="${state.qr}"></div>`;
+      } else if (state.ready) {
+        slot.className = "slot active";
+        slot.innerHTML = `<h4 style="color:var(--accent)">● Conectado</h4><p>${id}</p>`;
+      }
     }
 
-    function renderChats() {
+    async function addNewInstance() {
+      // Tenta inicializar o primeiro slot disponível
+      const nextId = !accountStates['CONTA_01']?.ready ? 'CONTA_01' : 'CONTA_02';
+      await fetch('/init-instance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: nextId })
+      });
+      alert("Iniciando instância... Aguarde o QR Code aparecer no slot.");
+    }
+
+    async function loadChats() {
+      const res = await fetch('/chats');
+      const chats = await res.json();
       const list = document.getElementById('chat-list');
-      list.innerHTML = allChats.map(c => `
+      list.innerHTML = chats.map(c => `
         <div class="chat-item">
-          <strong>${c.name}</strong><br>
-          <small style="color:#8696a0">${c.accountId}</small>
+          <strong>${c.name}</strong><br><small>${c.accountId}</small>
         </div>
       `).join('');
     }
 
-    // Init
+    // Carregar status inicial
     fetch('/status').then(r => r.json()).then(s => {
       accountStates = s;
+      Object.keys(s).forEach(id => updateSlotUI(id));
       if (Object.values(s).some(acc => acc.ready)) loadChats();
     });
   </script>

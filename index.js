@@ -6,38 +6,31 @@ const { Server } = require('socket.io');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const path = require('path');
-const fs = require('fs-extra');
 
-// --- INICIALIZAÇÃO CORE ---
-const app = express(); // DEFINIÇÃO DO APP (IMPORTANTE!)
+const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 const PORT = process.env.PORT || 3000;
 
-// --- MIDDLEWARES ---
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(process.cwd(), 'public')));
 
-// --- CONFIGURAÇÃO DE CONTAS ---
+// Gerenciamento de instâncias (Máximo 2 conforme sua interface)
 const ACCOUNTS = ['CONTA_01', 'CONTA_02'];
 const clients = {};
 const clientStates = {};
 
 ACCOUNTS.forEach(id => {
-  clientStates[id] = { status: 'disconnected', qr: null, ready: false, name: id };
+  clientStates[id] = { status: 'disconnected', qr: null, ready: false };
 
   clients[id] = new Client({
     authStrategy: new LocalAuth({ clientId: id }),
-    puppeteer: {
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      headless: true
-    }
+    puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] }
   });
 
   clients[id].on('qr', async (qr) => {
-    const url = await qrcode.toDataURL(qr);
-    clientStates[id].qr = url;
+    clientStates[id].qr = await qrcode.toDataURL(qr);
     clientStates[id].status = 'qr';
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
@@ -50,45 +43,43 @@ ACCOUNTS.forEach(id => {
   });
 });
 
-// --- ROTAS DA API ---
 app.get('/status', (req, res) => res.json(clientStates));
 
 app.get('/chats', async (req, res) => {
   try {
     let allChats = [];
     for (const id of ACCOUNTS) {
-      if (clientStates[id]?.ready) {
+      if (clientStates[id].ready) {
         let chats = await clients[id].getChats();
-
-        // Retry para sincronização inicial
+        // Delay de sincronização se necessário
         if (chats.length === 0) {
           await new Promise(r => setTimeout(r, 2000));
           chats = await clients[id].getChats();
         }
-
-        const mapped = chats
-          .filter(c => !c.isGroup)
-          .slice(0, 40)
-          .map(c => ({
-            id: `${id}:${c.id._serialized}`,
-            name: c.name || c.id.user,
-            accountId: id,
-            timestamp: c.timestamp
-          }));
+        const mapped = chats.filter(c => !c.isGroup).slice(0, 40).map(c => ({
+          id: `${id}:${c.id._serialized}`,
+          name: c.name || c.id.user,
+          accountId: id,
+          timestamp: c.timestamp
+        }));
         allChats = allChats.concat(mapped);
       }
     }
     allChats.sort((a, b) => b.timestamp - a.timestamp);
     res.json(allChats);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao buscar conversas' });
+  } catch (err) { res.status(500).json({ error: 'Erro nos chats' }); }
+});
+
+app.post('/init-instance', (req, res) => {
+  const { id } = req.body;
+  if (clients[id]) {
+    clients[id].initialize().catch(() => { });
+    res.json({ success: true });
+  } else {
+    res.status(404).send();
   }
 });
 
-// Inicialização
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-  ACCOUNTS.forEach((id, index) => {
-    setTimeout(() => clients[id].initialize(), index * 5000);
-  });
+  console.log(`Servidor online na porta ${PORT}`);
 });
