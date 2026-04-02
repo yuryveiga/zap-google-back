@@ -1342,9 +1342,12 @@
     function renderAccTabs() {
       const tabs = document.getElementById('acc-tabs');
       const connected = Object.entries(accountStates).filter(([, s]) => s.ready);
-      if (connected.length <= 1) { tabs.innerHTML = ''; return; }
-      tabs.innerHTML = `<div class="acc-tab ${activeFilter === 'all' ? 'active' : ''}" onclick="activeFilter='all';renderAccTabs();renderChatList()">Todos</div>` +
-        connected.map(([id, s]) => `<div class="acc-tab ${activeFilter === id ? 'active' : ''}" onclick="activeFilter='${id}';renderAccTabs();renderChatList()"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${accColor(id)};margin-right:6px"></span>${esc(s.name || id)}</div>`).join('');
+      if (connected.length > 0) { // Only render if there's at least one connected account
+        tabs.innerHTML = `<div class="acc-tab active" onclick="activeFilter='all';renderAccTabs();renderChatList()">TODAS</div>`;
+        activeFilter = 'all';
+      } else {
+        tabs.innerHTML = '';
+      }
     }
 
     async function loadChats() {
