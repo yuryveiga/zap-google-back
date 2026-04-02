@@ -55,7 +55,7 @@ const clients = {};
 const clientStates = {};
 
 ACCOUNTS.forEach(id => {
-  clientStates[id] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: accountNames[id] || id };
+  clientStates[id] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: accountNames[id] || id, reason: null };
 });
 
 function createClient(id) {
@@ -89,6 +89,7 @@ function createClient(id) {
     clientStates[id].status = 'connected';
     clientStates[id].ready = true;
     clientStates[id].qr = null;
+    clientStates[id].reason = null;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
@@ -101,6 +102,7 @@ function createClient(id) {
   client.on('auth_failure', (msg) => {
     console.error(`[${id}] Falha na autenticação:`, msg);
     clientStates[id].status = 'disconnected';
+    clientStates[id].reason = msg;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
@@ -116,6 +118,7 @@ function createClient(id) {
     clientStates[id].status = 'disconnected';
     clientStates[id].ready = false;
     clientStates[id].qr = null;
+    clientStates[id].reason = reason;
     io.emit('status_update', { accountId: id, ...clientStates[id] });
   });
 
@@ -230,7 +233,7 @@ app.post('/add-account', async (req, res) => {
   if (!ACCOUNTS.includes(accountId)) ACCOUNTS.push(accountId);
   saveSessions();
 
-  clientStates[accountId] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: name };
+  clientStates[accountId] = { status: 'starting', qr: null, ready: false, loadingPercent: 0, name: name, reason: null };
   clients[accountId] = createClient(accountId);
 
   io.emit('status_update', { accountId, ...clientStates[accountId] });
@@ -238,10 +241,41 @@ app.post('/add-account', async (req, res) => {
   clients[accountId].initialize().catch(err => {
     console.error(`[${accountId}] Erro na inicialização:`, err.message);
     clientStates[accountId].status = 'disconnected';
+    clientStates[accountId].reason = err.message;
     io.emit('status_update', { accountId, ...clientStates[accountId] });
   });
 
   res.json({ ok: true });
+});
+
+app.post('/remove-account/:accountId', async (req, res) => {
+  const { accountId } = req.params;
+  console.log(`[${accountId}] Removendo conta`);
+
+  try {
+    if (clients[accountId]) {
+      try { await clients[accountId].destroy(); } catch (_) { }
+      delete clients[accountId];
+      delete clientStates[accountId];
+      ACCOUNTS = ACCOUNTS.filter(id => id !== accountId);
+      delete accountNames[accountId];
+      saveSessions();
+
+      const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
+      if (await fs.pathExists(sessionPath)) {
+        await fs.remove(sessionPath);
+        console.log(`[${accountId}] Pasta de sessao removida`);
+      }
+
+      io.emit('account_removed', { accountId });
+      res.json({ ok: true });
+    } else {
+      res.status(400).json({ error: 'Conexão não encontrada' });
+    }
+  } catch (err) {
+    console.error(`[${accountId}] Erro ao remover:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/reset/:accountId', async (req, res) => {
@@ -259,7 +293,7 @@ app.post('/reset/:accountId', async (req, res) => {
       console.log(`[${accountId}] Pasta de sessao removida`);
     }
 
-    clientStates[accountId] = { ...clientStates[accountId], status: 'starting', qr: null, ready: false, loadingPercent: 0 };
+    clientStates[accountId] = { ...clientStates[accountId], status: 'starting', qr: null, ready: false, loadingPercent: 0, reason: null };
     clients[accountId] = createClient(accountId);
 
     io.emit('status_update', { accountId, ...clientStates[accountId] });
@@ -369,6 +403,7 @@ server.listen(PORT, '0.0.0.0', () => {
         clients[id].initialize().catch(err => {
           console.error(`[${id}] Erro:`, err.message);
           clientStates[id].status = 'disconnected';
+          clientStates[id].reason = err.message;
           io.emit('status_update', { accountId: id, ...clientStates[id] });
         });
       }

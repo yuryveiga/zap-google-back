@@ -1227,20 +1227,41 @@
         const d = await r.json();
         if (d.ok) {
           closeAddModal();
+          showPage('settings'); // Garante que a página de config seja exibida
         } else {
-          alert(d.error || 'Erro ao adicionar conta');
+          alert('Erro: ' + (d.error || 'Não foi possível adicionar a conta.'));
         }
-      } catch (e) { alert('Erro de conexão'); }
+      } catch (e) { alert('Erro de conexão: ' + e.message); }
+    }
+
+    async function removeAccount(accountId) {
+      if (!confirm(`Remover a conexão ${accountId}?`)) return;
+
+      try {
+        const r = await fetch(`/remove-account/${accountId}`, {
+          method: 'POST',
+        });
+        const d = await r.json();
+        if (d.ok) {
+          // Atualize a interface para refletir a conta removida
+          delete accountStates[accountId];
+          updateNavDots();
+          updateConnGrid();
+          renderAccTabs();
+        } else {
+          alert('Erro: ' + (d.error || 'Não foi possível remover a conta.'));
+        }
+      } catch (e) { alert('Erro de conexão: ' + e.message); }
     }
 
     // ── Socket ────────────────────────────────────────────────────────────────────
     socket.on('status_update', (data) => {
-      const { accountId, status, qr, ready, loadingPercent, name } = data;
+      const { accountId, status, qr, ready, loadingPercent, name, reason } = data;
 
       // Checa se o status anterior não estava pronto
       const wasReady = accountStates[accountId] ? accountStates[accountId].ready : false;
 
-      accountStates[accountId] = { status, qr, ready, loadingPercent, name: name || accountId };
+      accountStates[accountId] = { status, qr, ready, loadingPercent, name: name || accountId, reason };
       updateNavDots();
       updateConnGrid();
       renderAccTabs();
@@ -1311,7 +1332,9 @@
           ${qrHtml}
           <div class="conn-info">
             ${isLoading ? `<div class="conn-loading-bar"><div class="conn-loading-fill" style="width:${s.loadingPercent || 15}%"></div></div>` : ''}
-            <p>${s.status === 'pending' ? 'Escaneie o QR Code no seu WhatsApp para conectar.' : (s.status === 'connected' ? 'Sua conta está pronta para uso.' : 'Aguarde um momento...')}</p>
+            <p>${s.status === 'pending' ? 'Escaneie o QR Code no seu WhatsApp para conectar.' : (s.status === 'connected' ? 'Sua conta está pronta para uso.' : (s.status === 'disconnected' ? 'A conexão falhou.' : 'Aguarde um momento...'))}</p>
+            ${s.status === 'disconnected' && s.reason ? `<p style="color:#d9534f;font-size:12px;line-height:1.4;margin-top:4px;"><b>Motivo:</b> ${esc(s.reason)}</p>`: ''}
+            <button class="btn-danger" onclick="removeAccount('${id}')">Remover</button>
             ${s.status !== 'connected' && s.status !== 'pending' && !isLoading ? `<button class="btn-danger" onclick="resetAccount('${id}')">Reiniciar Conexão</button>` : ''}
             ${s.status === 'connected' ? `<button class="btn-danger" style="color:#8696a0; border-color:#8696a0;" onclick="resetAccount('${id}')">Desconectar</button>` : ''}
           </div>

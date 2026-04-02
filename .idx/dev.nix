@@ -8,6 +8,7 @@
   packages = [
     pkgs.nodejs_20
     pkgs.nodePackages.nodemon
+    pkgs.glib
   ];
 
   # Sets environment variables in the workspace
