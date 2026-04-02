@@ -278,9 +278,9 @@ app.post('/remove-account/:accountId', async (req, res) => {
   }
 });
 
-app.post('/reset/:accountId', async (req, res) => {
+app.post('/reconnect/:accountId', async (req, res) => {
   const { accountId } = req.params;
-  console.log(`[${accountId}] Reset de sessao solicitado`);
+  console.log(`[${accountId}] Reconexão solicitada`);
 
   try {
     if (clients[accountId]) {
@@ -299,7 +299,7 @@ app.post('/reset/:accountId', async (req, res) => {
     io.emit('status_update', { accountId, ...clientStates[accountId] });
     res.json({ ok: true });
   } catch (err) {
-    console.error(`[${accountId}] Erro no reset:`, err.message);
+    console.error(`[${accountId}] Erro ao reconectar:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -1243,11 +1243,7 @@
         });
         const d = await r.json();
         if (d.ok) {
-          // Atualize a interface para refletir a conta removida
-          delete accountStates[accountId];
-          updateNavDots();
-          updateConnGrid();
-          renderAccTabs();
+          // Interface será atualizada via socket 'account_removed'
         } else {
           alert('Erro: ' + (d.error || 'Não foi possível remover a conta.'));
         }
@@ -1257,20 +1253,22 @@
     // ── Socket ────────────────────────────────────────────────────────────────────
     socket.on('status_update', (data) => {
       const { accountId, status, qr, ready, loadingPercent, name, reason } = data;
-
-      // Checa se o status anterior não estava pronto
       const wasReady = accountStates[accountId] ? accountStates[accountId].ready : false;
-
       accountStates[accountId] = { status, qr, ready, loadingPercent, name: name || accountId, reason };
       updateNavDots();
       updateConnGrid();
       renderAccTabs();
-
-      // Lógica de REDIRECIONAMENTO AUTOMÁTICO após sucesso na autenticação/leitura QR
       if (!wasReady && ready) {
-        showPage('chats'); // Volta para a aba conversas
-        loadChats();       // Carrega os chats
+        showPage('chats');
+        loadChats();
       }
+    });
+
+    socket.on('account_removed', ({ accountId }) => {
+      delete accountStates[accountId];
+      updateNavDots();
+      updateConnGrid();
+      renderAccTabs();
     });
 
     socket.on('new_message', (msg) => {
@@ -1321,6 +1319,12 @@
             ? `<div class="conn-qr-placeholder" style="color:var(--accent);font-size:36px">&#10003;<br/><span style="font-size:13px">Conectado</span></div>`
             : `<div class="conn-qr-placeholder"><span class="status-dot"></span>${label}</div>`;
 
+        const actionButtons = `
+        <button class="btn-danger" onclick="removeAccount('${id}')">Remover</button>
+        ${s.status !== 'connected' && s.status !== 'pending' && !isLoading ? `<button class="btn-danger" onclick="reconnectAccount('${id}')">Reconectar</button>` : ''}
+        ${s.status === 'connected' ? `<button class="btn-danger" style="color:#8696a0; border-color:#8696a0;" onclick="reconnectAccount('${id}')">Desconectar</button>` : ''}
+      `;
+
         return `
       <div class="conn-card">
         <div class="conn-card-header">
@@ -1334,15 +1338,12 @@
             ${isLoading ? `<div class="conn-loading-bar"><div class="conn-loading-fill" style="width:${s.loadingPercent || 15}%"></div></div>` : ''}
             <p>${s.status === 'pending' ? 'Escaneie o QR Code no seu WhatsApp para conectar.' : (s.status === 'connected' ? 'Sua conta está pronta para uso.' : (s.status === 'disconnected' ? 'A conexão falhou.' : 'Aguarde um momento...'))}</p>
             ${s.status === 'disconnected' && s.reason ? `<p style="color:#d9534f;font-size:12px;line-height:1.4;margin-top:4px;"><b>Motivo:</b> ${esc(s.reason)}</p>`: ''}
-            <button class="btn-danger" onclick="removeAccount('${id}')">Remover</button>
-            ${s.status !== 'connected' && s.status !== 'pending' && !isLoading ? `<button class="btn-danger" onclick="resetAccount('${id}')">Reiniciar Conexão</button>` : ''}
-            ${s.status === 'connected' ? `<button class="btn-danger" style="color:#8696a0; border-color:#8696a0;" onclick="resetAccount('${id}')">Desconectar</button>` : ''}
+            <div class="conn-actions">${actionButtons}</div>
           </div>
         </div>
       </div>`;
       }).join('');
 
-      // Garante no mínimo 2 slots na interface (preenchidos ou vazios)
       const emptySlots = Math.max(2 - accounts.length, 0);
       for (let i = 0; i < emptySlots; i++) {
         html += `
@@ -1356,9 +1357,9 @@
       grid.innerHTML = html;
     }
 
-    async function resetAccount(id) {
-      if (!confirm(`Resetar conexão de ${id}? Precisará escanear o QR novamente.`)) return;
-      await fetch(`/reset/${id}`, { method: 'POST' });
+    async function reconnectAccount(id) {
+      if (!confirm(`Reconectar a conta ${id}? Você precisará escanear o QR code novamente.`)) return;
+      await fetch(`/reconnect/${id}`, { method: 'POST' });
     }
 
     // ── Chats ─────────────────────────────────────────────────────────────────────
