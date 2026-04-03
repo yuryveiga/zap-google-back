@@ -342,6 +342,48 @@ app.post('/reconnect/:accountId', authenticateToken, async (req, res) => {
   }
 });
 
+app.post('/generate-qr/:accountId', authenticateToken, async (req, res) => {
+  const { accountId } = req.params;
+  console.log(`[${accountId}] Gerando novo QR Code...`);
+  
+  if (!clients[accountId]) {
+    return res.status(400).json({ error: 'Conta não encontrada' });
+  }
+  
+  if (clientStates[accountId]?.ready) {
+    return res.status(400).json({ error: 'Já conectado' });
+  }
+  
+  try {
+    if (clients[accountId].pupPage) {
+      try { await clients[accountId].pupPage.close(); } catch (_) { }
+    }
+    
+    const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
+    if (await fs.pathExists(sessionPath)) {
+      await fs.remove(sessionPath);
+    }
+    
+    clientStates[accountId] = { ...clientStates[accountId], status: 'starting', qr: null, ready: false, loadingPercent: 0, reason: null };
+    delete clients[accountId];
+    clients[accountId] = createClient(accountId);
+    
+    io.emit('status_update', { accountId, ...clientStates[accountId] });
+    
+    clients[accountId].initialize().catch(err => {
+      console.error(`[${accountId}] Erro:`, err.message);
+      clientStates[accountId].status = 'disconnected';
+      clientStates[accountId].reason = err.message;
+      io.emit('status_update', { accountId, ...clientStates[accountId] });
+    });
+    
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`[${accountId}] Erro ao gerar QR:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/chats', authenticateToken, async (req, res) => {
   try {
     const allResults = [];

@@ -1513,7 +1513,7 @@
 
         const actionButtons = `
         <button class="btn-danger" onclick="removeAccount('${id}')">Remover</button>
-        ${s.status !== 'connected' && s.status !== 'pending' && !isLoading ? `<button class="btn-danger" onclick="reconnectAccount('${id}')">Reconectar</button>` : ''}
+        ${s.status !== 'connected' && s.status !== 'pending' && !isLoading ? `<button class="btn-danger" onclick="generateQR('${id}')">Gerar QR</button>` : ''}
         ${s.status === 'connected' ? `<button class="btn-danger" style="color:#8696a0; border-color:#8696a0;" onclick="reconnectAccount('${id}')">Desconectar</button>` : ''}
       `;
 
@@ -1550,7 +1550,14 @@
 
     async function reconnectAccount(id) {
       if (!confirm(`Reconectar a conta ${id}? Você precisará escanear o QR code novamente.`)) return;
-      await fetch(`/reconnect/${id}`, { method: 'POST' });
+      await fetch(`/reconnect/${id}`, { method: 'POST', headers: getAuthHeader() });
+    }
+
+    async function generateQR(id) {
+      if (!confirm(`Gerar novo QR Code para ${id}?`)) return;
+      const r = await fetch(`/generate-qr/${id}`, { method: 'POST', headers: getAuthHeader() });
+      const d = await r.json();
+      if (!d.ok) alert(d.error || 'Erro ao gerar QR');
     }
 
     // ── Chats ─────────────────────────────────────────────────────────────────────
