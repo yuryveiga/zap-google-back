@@ -394,18 +394,20 @@ app.get('/contact/:fullId', async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  const connectedAccounts = ACCOUNTS.filter(id => clientStates[id]?.status === 'connected');
-  connectedAccounts.forEach((id, index) => {
+  ACCOUNTS.forEach((id, index) => {
     setTimeout(() => {
-      console.log(`[${id}] Auto-inicializando...`);
-      clientStates[id].status = 'initializing';
-      io.emit('status_update', { accountId: id, ...clientStates[id] });
-      clients[id].initialize().catch(err => {
-        console.error(`[${id}] Erro:`, err.message);
-        clientStates[id].status = 'disconnected';
-        clientStates[id].reason = err.message;
+      const s = clientStates[id];
+      if (s && s.status !== 'connected' && s.status !== 'initializing' && s.status !== 'loading') {
+        console.log(`[${id}] Auto-inicializando...`);
+        clientStates[id].status = 'initializing';
         io.emit('status_update', { accountId: id, ...clientStates[id] });
-      });
+        clients[id].initialize().catch(err => {
+          console.error(`[${id}] Erro:`, err.message);
+          clientStates[id].status = 'disconnected';
+          clientStates[id].reason = err.message;
+          io.emit('status_update', { accountId: id, ...clientStates[id] });
+        });
+      }
     }, index * 8000);
   });
   console.log(`Servidor rodando em http://0.0.0.0:${PORT}`);
