@@ -1192,15 +1192,28 @@
     </div>
 
     <div class="modal-overlay" id="modal-schedule">
-      <div class="modal">
+      <div class="modal" style="width:450px">
         <h3>Agendar Mensagem</h3>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px">Escolha a data, hora e digite a mensagem.</p>
-        <input type="date" id="schedule-date" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-family:var(--font);margin-bottom:10px;outline:none" />
-        <input type="time" id="schedule-time" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-family:var(--font);margin-bottom:10px;outline:none" />
-        <textarea id="schedule-message" rows="3" placeholder="Digite sua mensagem..." style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-family:var(--font);margin-bottom:10px;outline:none;resize:none"></textarea>
-        <div class="modal-btns">
-          <button class="btn-cancel" onclick="closeScheduleModal()">Cancelar</button>
-          <button class="btn-ok" onclick="confirmScheduleMessage()">Agendar</button>
+        <div style="display:flex;gap:8px;margin-bottom:15px;border-bottom:1px solid var(--border)">
+          <div id="tab-schedule" onclick="showScheduleTab('schedule')" style="flex:1;text-align:center;padding:8px;cursor:pointer;border-bottom:2px solid var(--accent);color:var(--accent)">Agendar</div>
+          <div id="tab-scheduled" onclick="showScheduleTab('scheduled')" style="flex:1;text-align:center;padding:8px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">Agendadas</div>
+          <div id="tab-history" onclick="showScheduleTab('history')" style="flex:1;text-align:center;padding:8px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">Histórico</div>
+        </div>
+        <div id="schedule-content">
+          <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px">Escolha a data, hora e digite a mensagem.</p>
+          <input type="date" id="schedule-date" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-family:var(--font);margin-bottom:10px;outline:none" />
+          <input type="time" id="schedule-time" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-family:var(--font);margin-bottom:10px;outline:none" />
+          <textarea id="schedule-message" rows="3" placeholder="Digite sua mensagem..." style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-family:var(--font);margin-bottom:10px;outline:none;resize:none"></textarea>
+          <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeScheduleModal()">Cancelar</button>
+            <button class="btn-ok" onclick="confirmScheduleMessage()">Agendar</button>
+          </div>
+        </div>
+        <div id="scheduled-content" style="display:none">
+          <div id="scheduled-list"></div>
+        </div>
+        <div id="history-content" style="display:none">
+          <div id="history-list"></div>
         </div>
       </div>
     </div>
@@ -1270,12 +1283,70 @@
       dateInput.value = now.toISOString().split('T')[0];
       timeInput.value = '09:00';
       document.getElementById('modal-schedule').classList.add('active');
+      showScheduleTab('schedule');
       document.getElementById('schedule-message').focus();
     }
 
     function closeScheduleModal() {
       document.getElementById('modal-schedule').classList.remove('active');
       document.getElementById('schedule-message').value = '';
+    }
+
+    function showScheduleTab(tab) {
+      document.getElementById('tab-schedule').style.borderBottomColor = 'transparent';
+      document.getElementById('tab-scheduled').style.borderBottomColor = 'transparent';
+      document.getElementById('tab-history').style.borderBottomColor = 'transparent';
+      document.getElementById('tab-schedule').style.color = 'var(--text-secondary)';
+      document.getElementById('tab-scheduled').style.color = 'var(--text-secondary)';
+      document.getElementById('tab-history').style.color = 'var(--text-secondary)';
+      
+      document.getElementById('tab-' + tab).style.borderBottomColor = 'var(--accent)';
+      document.getElementById('tab-' + tab).style.color = 'var(--accent)';
+      
+      document.getElementById('schedule-content').style.display = 'none';
+      document.getElementById('scheduled-content').style.display = 'none';
+      document.getElementById('history-content').style.display = 'none';
+      document.getElementById(tab + '-content').style.display = 'block';
+      
+      if (tab === 'scheduled') renderScheduledMessages();
+      if (tab === 'history') renderHistoryMessages();
+    }
+
+    function renderScheduledMessages() {
+      const list = document.getElementById('scheduled-list');
+      if (!activeChat) { list.innerHTML = '<p style="color:var(--text-secondary)">Nenhuma conversa selecionada</p>'; return; }
+      const allScheduled = JSON.parse(localStorage.getItem('scheduledMessages') || '[]');
+      const chatScheduled = allScheduled.filter(m => m.to === activeChat.id);
+      if (chatScheduled.length === 0) { list.innerHTML = '<p style="color:var(--text-secondary)">Nenhuma mensagem agendada</p>'; return; }
+      list.innerHTML = chatScheduled.map((m, i) => {
+        const date = new Date(m.scheduledTime);
+        return `<div style="background:var(--bg-input);padding:10px;border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+          <div><div style="font-size:13px">${esc(m.body)}</div><div style="font-size:11px;color:var(--text-meta)">${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</div></div>
+          <button onclick="deleteScheduledMessage(${i})" style="background:none;border:none;color:#d9534f;cursor:pointer;font-size:16px">&#10005;</button>
+        </div>`;
+      }).join('');
+    }
+
+    function renderHistoryMessages() {
+      const list = document.getElementById('history-list');
+      const allHistory = JSON.parse(localStorage.getItem('sentMessages') || '[]');
+      if (allHistory.length === 0) { list.innerHTML = '<p style="color:var(--text-secondary)">Nenhuma mensagem enviada</p>'; return; }
+      list.innerHTML = allHistory.map(m => {
+        const date = new Date(m.sentTime);
+        return `<div style="background:var(--bg-input);padding:10px;border-radius:8px;margin-bottom:8px">
+          <div style="font-size:13px">${esc(m.body)}</div>
+          <div style="font-size:11px;color:var(--text-meta)">Enviada em ${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function deleteScheduledMessage(index) {
+      const allScheduled = JSON.parse(localStorage.getItem('scheduledMessages') || '[]');
+      const chatScheduled = allScheduled.filter(m => m.to === activeChat.id);
+      const toDelete = chatScheduled[index];
+      const newAll = allScheduled.filter(m => !(m.to === toDelete.to && m.scheduledTime === toDelete.scheduledTime && m.body === toDelete.body));
+      localStorage.setItem('scheduledMessages', JSON.stringify(newAll));
+      renderScheduledMessages();
     }
 
     function confirmScheduleMessage() {
@@ -1290,7 +1361,7 @@
       let scheduledMsgs = JSON.parse(localStorage.getItem('scheduledMessages') || '[]');
       scheduledMsgs.push(scheduleData);
       localStorage.setItem('scheduledMessages', JSON.stringify(scheduledMsgs));
-      closeScheduleModal();
+      document.getElementById('schedule-message').value = '';
       alert('Mensagem agendada para ' + date + ' às ' + time);
     }
 
@@ -1299,11 +1370,14 @@
       const scheduledMsgs = JSON.parse(localStorage.getItem('scheduledMessages') || '[]');
       const toSend = scheduledMsgs.filter(m => m.scheduledTime <= now);
       if (toSend.length > 0) {
+        const sentHistory = JSON.parse(localStorage.getItem('sentMessages') || '[]');
         toSend.forEach(async (m) => {
           try {
             await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: m.to, body: m.body }) });
+            sentHistory.push({ to: m.to, body: m.body, sentTime: Date.now() });
           } catch (e) { console.error('Erro ao enviar mensagem agendada:', e); }
         });
+        localStorage.setItem('sentMessages', JSON.stringify(sentHistory));
         const remaining = scheduledMsgs.filter(m => m.scheduledTime > now);
         localStorage.setItem('scheduledMessages', JSON.stringify(remaining));
       }
