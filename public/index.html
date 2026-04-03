@@ -1517,10 +1517,14 @@
 
       const inputArea = document.createElement('div');
       inputArea.id = 'input-area';
-      inputArea.innerHTML = `<textarea id="msg-input" rows="1" placeholder="Digite uma mensagem" oninput="autoResize(this)" onkeydown="handleKey(event)"></textarea><button id="send-btn" onclick="sendMessage()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+      inputArea.innerHTML = `<div style="display:flex;align-items:center;gap:8px;width:100%"><textarea id="msg-input" rows="1" placeholder="Digite uma mensagem" oninput="autoResize(this)" onkeydown="handleKey(event)" style="flex:1;background:var(--bg-input);border:none;outline:none;border-radius:10px;padding:11px 16px;color:var(--text-primary);font-family:var(--font);font-size:15px;resize:none;max-height:120px;line-height:1.5;"></textarea><button id="send-btn" onclick="sendMessage()" style="width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>`;
       area.insertBefore(inputArea, document.getElementById('contact-panel'));
 
-      await loadMessages(chatId);
+      try {
+        await loadMessages(chatId);
+      } catch (e) {
+        console.error('Erro ao carregar mensagens:', e);
+      }
       document.getElementById('msg-input')?.focus();
     }
 
