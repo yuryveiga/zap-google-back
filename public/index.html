@@ -1626,6 +1626,24 @@
       console.error('Error fetching status:', err);
       document.getElementById('chat-list').innerHTML = '<p class="empty-list">Erro ao conectar</p>';
     });
+
+    setInterval(async () => {
+      if (!allChats.length) return;
+      for (const chat of allChats) {
+        try {
+          const res = await fetch('/contact/' + encodeURIComponent(chat.id));
+          const contact = await res.json();
+          if (contact) {
+            try {
+              const avRes = await fetch('/avatar/' + encodeURIComponent(chat.id));
+              const avData = await avRes.json();
+              if (avData.url) avatarCache[chat.id] = avData.url;
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+      renderChatList();
+    }, 10 * 60 * 1000);
   </script>
 </body>
 
