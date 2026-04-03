@@ -1222,6 +1222,17 @@
   <script>
     const socket = io();
 
+    function getAuthHeader() {
+      const token = localStorage.getItem('token');
+      return token ? { 'Authorization': 'Bearer ' + token } : {};
+    }
+
+    function checkAuth() {
+      const token = localStorage.getItem('token');
+      if (!token) { window.location.href = '/login.html'; return false; }
+      return true;
+    }
+
     let accountStates = {};
     let allChats = [];
     let activeChat = null;
@@ -1230,7 +1241,9 @@
 
     const COLORS = ['#e74c3c', '#e67e22', '#2ecc71', '#3498db', '#9b59b6', '#1abc9c', '#e91e63', '#00bcd4', '#ff5722', '#607d8b'];
     const ACC_COLORS = { acc1: '#00a884', acc2: '#3498db', acc3: '#9b59b6', acc4: '#e74c3c' };
-    let deletedChats = []; // IDs de conversas excluídas
+    let deletedChats = [];
+
+    if (!checkAuth()) throw new Error('Not authenticated');
 
     function avatarColor(name) { let h = 0; for (let i = 0; i < (name || '').length; i++) h += name.charCodeAt(i); return COLORS[h % COLORS.length]; }
     function accColor(id) { return ACC_COLORS[id] || '#667781'; }
@@ -1373,7 +1386,7 @@
         const sentHistory = JSON.parse(localStorage.getItem('sentMessages') || '[]');
         toSend.forEach(async (m) => {
           try {
-            await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: m.to, body: m.body }) });
+            await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeader() }, body: JSON.stringify({ to: m.to, body: m.body }) });
             sentHistory.push({ to: m.to, body: m.body, sentTime: Date.now() });
           } catch (e) { console.error('Erro ao enviar mensagem agendada:', e); }
         });
@@ -1398,7 +1411,7 @@
       try {
         const r = await fetch('/add-account', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
           body: JSON.stringify({ name, accountId })
         });
         const d = await r.json();
@@ -1561,7 +1574,7 @@
     async function loadChats() {
       document.getElementById('chat-list').innerHTML = '<div class="spinner"></div>';
       try {
-        const r = await fetch('/chats');
+        const r = await fetch('/chats', { headers: getAuthHeader() });
         const newChats = await r.json();
         const filteredNew = newChats.filter(c => !deletedChats.includes(c.id));
         filteredNew.forEach(newChat => {
@@ -1577,7 +1590,7 @@
         for (const chat of allChats) {
           if (!avatarCache[chat.id]) {
             try {
-              const res = await fetch('/avatar/' + encodeURIComponent(chat.id));
+              const res = await fetch('/avatar/' + encodeURIComponent(chat.id), { headers: getAuthHeader() });
               const data = await res.json();
               if (data.url) avatarCache[chat.id] = data.url;
             } catch (_) {}
@@ -1631,11 +1644,11 @@
       let contactInfo = null;
       
       try {
-        const res = await fetch('/contact/' + encodeURIComponent(chatId));
+        const res = await fetch('/contact/' + encodeURIComponent(chatId), { headers: getAuthHeader() });
         contactInfo = await res.json();
         if (contactInfo && !avatarUrl) {
           try {
-            const avRes = await fetch('/avatar/' + encodeURIComponent(chatId));
+            const avRes = await fetch('/avatar/' + encodeURIComponent(chatId), { headers: getAuthHeader() });
             const avData = await avRes.json();
             if (avData.url) {
               avatarUrl = avData.url;
@@ -1769,7 +1782,7 @@
       console.log('loadMessages called for:', chatId);
       const area = document.getElementById('messages-area');
       try {
-        const r = await fetch('/messages/' + encodeURIComponent(chatId));
+        const r = await fetch('/messages/' + encodeURIComponent(chatId), { headers: getAuthHeader() });
         console.log('Response status:', r.status);
         if (!r.ok) {
           const err = await r.json();
@@ -1834,11 +1847,11 @@
       panel.classList.add('open');
 
       try {
-        const contact = await fetch('/contact/' + encodeURIComponent(chatId)).then(r => r.json());
+        const contact = await fetch('/contact/' + encodeURIComponent(chatId), { headers: getAuthHeader() }).then(r => r.json());
         let avatarUrl = avatarCache[chatId];
         if (!avatarUrl) {
           try {
-            const av = await fetch('/avatar/' + encodeURIComponent(chatId)).then(r => r.json());
+            const av = await fetch('/avatar/' + encodeURIComponent(chatId), { headers: getAuthHeader() }).then(r => r.json());
             if (av.url) { avatarUrl = av.url; avatarCache[chatId] = avatarUrl; }
           } catch (_) {}
         }
@@ -1870,7 +1883,7 @@
       const body = input.value.trim();
       if (!body) return;
       input.value = ''; autoResize(input); toggleSendBtn();
-      try { await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: activeChat.id, body }) }); } catch (e) { }
+      try { await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeader() }, body: JSON.stringify({ to: activeChat.id, body }) }); } catch (e) { }
     }
 
     function toggleEmojiPicker() {
@@ -1931,7 +1944,7 @@
       area.scrollTop = area.scrollHeight;
       
       if (!activeChat) { alert('Selecione uma conversa primeiro'); return; }
-      fetch('/send-file', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: activeChat.id, file: base64, mimeType, fileName }) }).then(r => r.json()).then(d => { if (!d.ok) alert('Erro ao enviar: ' + d.error); }).catch(e => alert('Erro: ' + e.message));
+      fetch('/send-file', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeader() }, body: JSON.stringify({ to: activeChat.id, file: base64, mimeType, fileName }) }).then(r => r.json()).then(d => { if (!d.ok) alert('Erro ao enviar: ' + d.error); }).catch(e => alert('Erro: ' + e.message));
     }
 
     document.addEventListener('click', function(e) {
@@ -1942,7 +1955,7 @@
     });
 
     // ── Init Inicial ──────────────────────────────────────────────────────────────
-    fetch('/status').then(r => r.json()).then(states => {
+    fetch('/status', { headers: getAuthHeader() }).then(r => r.json()).then(states => {
       console.log('Status received:', states);
       Object.entries(states).forEach(([id, s]) => { accountStates[id] = s; });
       updateNavDots();
@@ -1964,11 +1977,11 @@
       if (!allChats.length) return;
       for (const chat of allChats) {
         try {
-          const res = await fetch('/contact/' + encodeURIComponent(chat.id));
+          const res = await fetch('/contact/' + encodeURIComponent(chat.id), { headers: getAuthHeader() });
           const contact = await res.json();
           if (contact) {
             try {
-              const avRes = await fetch('/avatar/' + encodeURIComponent(chat.id));
+              const avRes = await fetch('/avatar/' + encodeURIComponent(chat.id), { headers: getAuthHeader() });
               const avData = await avRes.json();
               if (avData.url) avatarCache[chat.id] = avData.url;
             } catch (_) {}

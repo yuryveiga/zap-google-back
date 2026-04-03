@@ -7,6 +7,8 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs-extra');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,6 +16,21 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'zap-google-secret-key-2024';
+
+const users = [];
+bcrypt.hash('1234', 10).then(hash => users.push({ username: 'yury', password: hash }));
+
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Token required' });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid token' });
+    req.user = user;
+    next();
+  });
+}
 
 // Captura logs em memória para debug remoto
 const serverLogs = [];
@@ -207,21 +224,39 @@ io.on('connection', (socket) => {
   });
 });
 
+// ─── Rotas de Autenticação ───────────────────────────────────────────────────────
+
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  const user = users.find(u => u.username === username);
+  if (!user) return res.status(401).json({ error: 'Usuário inválido' });
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) return res.status(401).json({ error: 'Senha inválida' });
+  const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+  res.json({ token, username: user.username });
+});
+
 // ─── Rotas REST ───────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.sendFile(path.join(process.cwd(), 'public', 'login.html'));
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.sendFile(path.join(process.cwd(), 'public', 'login.html'));
+    res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+  });
 });
 
-app.get('/status', (req, res) => {
+app.get('/status', authenticateToken, (req, res) => {
   res.json(clientStates);
 });
 
-app.get('/logs', (req, res) => {
+app.get('/logs', authenticateToken, (req, res) => {
   res.json(serverLogs);
 });
 
-app.post('/add-account', async (req, res) => {
+app.post('/add-account', authenticateToken, async (req, res) => {
   const { name, accountId } = req.body;
   if (!name || !accountId) return res.status(400).json({ error: 'Nome e ID são obrigatórios' });
 
@@ -249,7 +284,7 @@ app.post('/add-account', async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/remove-account/:accountId', async (req, res) => {
+app.post('/remove-account/:accountId', authenticateToken, async (req, res) => {
   const { accountId } = req.params;
   console.log(`[${accountId}] Removendo conta`);
 
@@ -281,7 +316,7 @@ app.post('/remove-account/:accountId', async (req, res) => {
   }
 });
 
-app.post('/reconnect/:accountId', async (req, res) => {
+app.post('/reconnect/:accountId', authenticateToken, async (req, res) => {
   const { accountId } = req.params;
   console.log(`[${accountId}] Reconexão solicitada`);
 
@@ -307,7 +342,7 @@ app.post('/reconnect/:accountId', async (req, res) => {
   }
 });
 
-app.get('/chats', async (req, res) => {
+app.get('/chats', authenticateToken, async (req, res) => {
   try {
     const allResults = [];
     for (const id of ACCOUNTS) {
@@ -338,7 +373,7 @@ app.get('/chats', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/messages/:fullId', async (req, res) => {
+app.get('/messages/:fullId', authenticateToken, async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
     if (!clients[accountId] || !clientStates[accountId]?.ready) return res.status(503).json({ error: 'Offline' });
@@ -358,7 +393,7 @@ app.get('/messages/:fullId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/send', async (req, res) => {
+app.post('/send', authenticateToken, async (req, res) => {
   try {
     const { to, body, mediaUrl, caption } = req.body;
     const { accountId, chatId } = parseId(to);
@@ -373,7 +408,7 @@ app.post('/send', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/send-file', async (req, res) => {
+app.post('/send-file', authenticateToken, async (req, res) => {
   try {
     const { to, file, caption, mimeType, fileName } = req.body;
     const { accountId, chatId } = parseId(to);
@@ -385,7 +420,7 @@ app.post('/send-file', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/avatar/:fullId', async (req, res) => {
+app.get('/avatar/:fullId', authenticateToken, async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
     if (!clients[accountId] || !clientStates[accountId]?.ready) return res.json({ url: null });
@@ -394,7 +429,7 @@ app.get('/avatar/:fullId', async (req, res) => {
   } catch (err) { res.json({ url: null }); }
 });
 
-app.get('/contact/:fullId', async (req, res) => {
+app.get('/contact/:fullId', authenticateToken, async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
     if (!clients[accountId] || !clientStates[accountId]?.ready) return res.status(503).json({ error: 'Offline' });

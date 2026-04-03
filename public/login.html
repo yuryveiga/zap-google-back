@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - WhatsApp Web</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: #111b21;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-box {
+      background: #1f2c33;
+      padding: 40px;
+      border-radius: 12px;
+      width: 350px;
+      text-align: center;
+      border: 1px solid #222d34;
+    }
+    .login-box h1 {
+      color: #00a884;
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .login-box p {
+      color: #8696a0;
+      margin-bottom: 24px;
+    }
+    .login-box input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      border: 1px solid #2a3942;
+      background: #2a3942;
+      color: #e9edef;
+      font-size: 14px;
+      outline: none;
+    }
+    .login-box input:focus {
+      border-color: #00a884;
+    }
+    .login-box button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background: #00a884;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .login-box button:hover {
+      background: #00896c;
+    }
+    .error {
+      color: #d9534f;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>WhatsApp Web</h1>
+    <p>Faça login para continuar</p>
+    <div class="error" id="error"></div>
+    <input type="text" id="username" placeholder="Usuário" />
+    <input type="password" id="password" placeholder="Senha" />
+    <button onclick="login()">Entrar</button>
+  </div>
+  <script>
+    async function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const error = document.getElementById('error');
+      if (!username || !password) { error.style.display = 'block'; error.textContent = 'Preencha usuário e senha'; return; }
+      try {
+        const r = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const d = await r.json();
+        if (d.token) {
+          localStorage.setItem('token', d.token);
+          localStorage.setItem('username', d.username);
+          window.location.href = '/';
+        } else {
+          error.style.display = 'block';
+          error.textContent = d.error || 'Erro ao fazer login';
+        }
+      } catch (e) { error.style.display = 'block'; error.textContent = 'Erro de conexão'; }
+    }
+    document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+  </script>
+</body>
+</html>
