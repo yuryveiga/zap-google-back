@@ -161,7 +161,7 @@ ACCOUNTS.forEach(id => {
 
 function parseId(fullId) {
   const parts = fullId.split(':');
-  if (parts.length < 2) return { accountId: ACCOUNTS[0], chatId: fullId };
+  if (parts.length < 2) return { accountId: ACCOUNTS[0] || '', chatId: fullId };
   return { accountId: parts[0], chatId: parts.slice(1).join(':') };
 }
 
@@ -197,7 +197,7 @@ io.on('connection', (socket) => {
     try {
       const { accountId, chatId } = parseId(fullId);
       const client = clients[accountId];
-      if (client && clientStates[accountId].ready) {
+      if (client && clientStates[accountId]?.ready) {
         await client.sendMessage(chatId, body);
       }
     } catch (err) {
@@ -252,26 +252,28 @@ app.post('/remove-account/:accountId', async (req, res) => {
   const { accountId } = req.params;
   console.log(`[${accountId}] Removendo conta`);
 
+  if (!ACCOUNTS.includes(accountId)) {
+    return res.status(400).json({ error: 'Conexão não encontrada' });
+  }
+
   try {
     if (clients[accountId]) {
       try { await clients[accountId].destroy(); } catch (_) { }
       delete clients[accountId];
-      delete clientStates[accountId];
-      ACCOUNTS = ACCOUNTS.filter(id => id !== accountId);
-      delete accountNames[accountId];
-      saveSessions();
-
-      const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
-      if (await fs.pathExists(sessionPath)) {
-        await fs.remove(sessionPath);
-        console.log(`[${accountId}] Pasta de sessao removida`);
-      }
-
-      io.emit('account_removed', { accountId });
-      res.json({ ok: true });
-    } else {
-      res.status(400).json({ error: 'Conexão não encontrada' });
     }
+    delete clientStates[accountId];
+    ACCOUNTS = ACCOUNTS.filter(id => id !== accountId);
+    delete accountNames[accountId];
+    saveSessions();
+
+    const sessionPath = path.join(process.cwd(), '.wwebjs_auth', `session-${accountId}`);
+    if (await fs.pathExists(sessionPath)) {
+      await fs.remove(sessionPath);
+      console.log(`[${accountId}] Pasta de sessao removida`);
+    }
+
+    io.emit('account_removed', { accountId });
+    res.json({ ok: true });
   } catch (err) {
     console.error(`[${accountId}] Erro ao remover:`, err.message);
     res.status(500).json({ error: err.message });
@@ -338,7 +340,7 @@ app.get('/chats', async (req, res) => {
 app.get('/messages/:fullId', async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
-    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
+    if (!clients[accountId] || !clientStates[accountId]?.ready) return res.status(503).json({ error: 'Offline' });
     const limit = parseInt(req.query.limit) || 50;
     const chat = await withRetry(() => clients[accountId].getChatById(chatId));
     const msgs = await withRetry(() => chat.fetchMessages({ limit }));
@@ -359,7 +361,7 @@ app.post('/send', async (req, res) => {
   try {
     const { to, body } = req.body;
     const { accountId, chatId } = parseId(to);
-    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
+    if (!clients[accountId] || !clientStates[accountId]?.ready) return res.status(503).json({ error: 'Offline' });
     const msg = await clients[accountId].sendMessage(chatId, body);
     res.json({ ok: true, id: msg.id._serialized });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -368,7 +370,7 @@ app.post('/send', async (req, res) => {
 app.get('/avatar/:fullId', async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
-    if (!clientStates[accountId].ready) return res.json({ url: null });
+    if (!clients[accountId] || !clientStates[accountId]?.ready) return res.json({ url: null });
     const url = await clients[accountId].getProfilePicUrl(chatId).catch(() => null);
     res.json({ url: url || null });
   } catch (err) { res.json({ url: null }); }
@@ -377,7 +379,7 @@ app.get('/avatar/:fullId', async (req, res) => {
 app.get('/contact/:fullId', async (req, res) => {
   try {
     const { accountId, chatId } = parseId(req.params.fullId);
-    if (!clientStates[accountId].ready) return res.status(503).json({ error: 'Offline' });
+    if (!clients[accountId] || !clientStates[accountId]?.ready) return res.status(503).json({ error: 'Offline' });
     const contact = await clients[accountId].getContactById(chatId).catch(() => null);
     if (!contact) return res.json({ id: req.params.fullId, name: chatId.split('@')[0] });
     res.json({

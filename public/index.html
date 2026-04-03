@@ -1215,8 +1215,13 @@
       const name = document.getElementById('new-acc-name').value.trim();
       if (!name) return alert('Por favor, insira um nome.');
 
-      // Gera um id sequencial novo
-      const accountId = 'acc' + (Object.keys(accountStates).length + 1);
+      const existingIds = Object.keys(accountStates);
+      let accountId = 'acc1';
+      let counter = 1;
+      while (existingIds.includes(accountId)) {
+        counter++;
+        accountId = 'acc' + counter;
+      }
 
       try {
         const r = await fetch('/add-account', {
@@ -1227,7 +1232,7 @@
         const d = await r.json();
         if (d.ok) {
           closeAddModal();
-          showPage('settings'); // Garante que a página de config seja exibida
+          showPage('settings');
         } else {
           alert('Erro: ' + (d.error || 'Não foi possível adicionar a conta.'));
         }
@@ -1366,12 +1371,18 @@
     function renderAccTabs() {
       const tabs = document.getElementById('acc-tabs');
       const connected = Object.entries(accountStates).filter(([, s]) => s.ready);
-      if (connected.length > 0) { // Only render if there's at least one connected account
-        tabs.innerHTML = `<div class="acc-tab active" onclick="activeFilter='all';renderAccTabs();renderChatList()">TODAS</div>`;
-        activeFilter = 'all';
+      if (connected.length > 0) {
+        const filter = activeFilter || 'all';
+        tabs.innerHTML = `<div class="acc-tab ${filter === 'all' ? 'active' : ''}" onclick="setFilter('all')">TODAS</div>`;
       } else {
         tabs.innerHTML = '';
       }
+    }
+
+    function setFilter(f) {
+      activeFilter = f;
+      renderAccTabs();
+      renderChatList();
     }
 
     async function loadChats() {
