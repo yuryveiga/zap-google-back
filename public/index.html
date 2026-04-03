@@ -1512,8 +1512,10 @@
 
       const header = document.createElement('div');
       header.id = 'chat-header';
-      header.onclick = () => showContactPanel(chatId);
-      header.innerHTML = `${avatarEl(contactInfo?.name || activeChat.name, avatarUrl, '', activeChat.accountId)}<div id="header-info"><div id="header-name">${esc(contactInfo?.name || activeChat.name || chatId)}</div><div id="header-sub">${contactInfo?.number || activeChat.accountId}</div></div>`;
+      header.style.display = 'flex';
+      header.style.alignItems = 'center';
+      header.style.gap = '10px';
+      header.innerHTML = `<button onclick="closeChat()" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:4px;">&#8592;</button>${avatarEl(contactInfo?.name || activeChat.name, avatarUrl, '', activeChat.accountId)}<div id="header-info" onclick="showContactPanel('${chatId}')" style="flex:1;cursor:pointer"><div id="header-name">${esc(contactInfo?.name || activeChat.name || chatId)}</div><div id="header-sub">${contactInfo?.number || activeChat.accountId}</div></div>`;
       area.insertBefore(header, document.getElementById('contact-panel'));
 
       const msgArea = document.createElement('div');
@@ -1572,6 +1574,17 @@
 
     function closeContactPanel() {
       document.getElementById('contact-panel')?.classList.remove('open');
+    }
+
+    function closeChat() {
+      const area = document.getElementById('chat-area');
+      area.querySelectorAll('#chat-header, #messages-area, #input-area').forEach(el => el.remove());
+      const welcome = document.createElement('div');
+      welcome.id = 'welcome-screen';
+      welcome.innerHTML = `<svg width="140" height="140" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.996 9.996 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#00a884"/></svg><h3>WhatsApp Web</h3><p>Selecione uma conversa para começar</p>`;
+      area.insertBefore(welcome, document.getElementById('contact-panel'));
+      activeChat = null;
+      renderChatList();
     }
 
     async function showContactPanel(chatId) {
