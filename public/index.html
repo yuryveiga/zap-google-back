@@ -1902,9 +1902,36 @@
 
     function handleFileSelect(event) {
       const file = event.target.files[0];
-      if (file) {
-        alert('Upload de arquivo: ' + file.name + ' - Em breve!');
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const fileData = e.target.result;
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+        previewFile(fileData, file.name, file.type, isImage, isVideo);
+      };
+      reader.readAsDataURL(file);
+      event.target.value = '';
+    }
+
+    function previewFile(base64, fileName, mimeType, isImage, isVideo) {
+      const area = document.getElementById('messages-area');
+      if (!area) return;
+      const div = document.createElement('div');
+      div.className = 'msg-bubble out';
+      if (isImage) {
+        div.innerHTML = `<img src="${base64}" style="max-width:250px;border-radius:8px;cursor:pointer" onclick="window.open(this.src)"><div class="msg-meta"><span class="msg-time">${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</span></div>`;
+      } else if (isVideo) {
+        div.innerHTML = `<video src="${base64}" controls style="max-width:250px;border-radius:8px"></video><div class="msg-meta"><span class="msg-time">${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</span></div>`;
+      } else {
+        const icon = '&#128196;';
+        div.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg-input);border-radius:8px;max-width:250px"><span style="font-size:24px">${icon}</span><span style="font-size:12px;word-break:break-all">${esc(fileName)}</span></div><div class="msg-meta"><span class="msg-time">${new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</span></div>`;
       }
+      area.appendChild(div);
+      area.scrollTop = area.scrollHeight;
+      
+      if (!activeChat) { alert('Selecione uma conversa primeiro'); return; }
+      fetch('/send-file', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: activeChat.id, file: base64, mimeType, fileName }) }).then(r => r.json()).then(d => { if (!d.ok) alert('Erro ao enviar: ' + d.error); }).catch(e => alert('Erro: ' + e.message));
     }
 
     document.addEventListener('click', function(e) {

@@ -359,10 +359,25 @@ app.get('/messages/:fullId', async (req, res) => {
 
 app.post('/send', async (req, res) => {
   try {
-    const { to, body } = req.body;
+    const { to, body, mediaUrl, caption } = req.body;
     const { accountId, chatId } = parseId(to);
     if (!clients[accountId] || !clientStates[accountId]?.ready) return res.status(503).json({ error: 'Offline' });
-    const msg = await clients[accountId].sendMessage(chatId, body);
+    let msg;
+    if (mediaUrl) {
+      msg = await clients[accountId].sendMessage(chatId, caption || '', { media: mediaUrl });
+    } else {
+      msg = await clients[accountId].sendMessage(chatId, body);
+    }
+    res.json({ ok: true, id: msg.id._serialized });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/send-file', async (req, res) => {
+  try {
+    const { to, file, caption, mimeType, fileName } = req.body;
+    const { accountId, chatId } = parseId(to);
+    if (!clients[accountId] || !clientStates[accountId]?.ready) return res.status(503).json({ error: 'Offline' });
+    const msg = await clients[accountId].sendMessage(chatId, caption || '', { media: file, mediaFilename: fileName || 'file' });
     res.json({ ok: true, id: msg.id._serialized });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
