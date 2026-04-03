@@ -1480,8 +1480,14 @@
     }
 
     async function openChat(chatId) {
+      console.log('openChat called:', chatId, 'allChats length:', allChats.length);
       activeChat = allChats.find(c => c.id === chatId);
-      if (!activeChat) return;
+      if (!activeChat) {
+        console.log('Chat not found in allChats');
+        alert('Erro: Conversa não encontrada. Carregue as conversas primeiro.');
+        return;
+      }
+      console.log('Opening chat:', activeChat.name);
       renderChatList();
       const area = document.getElementById('chat-area');
       ['welcome-screen', 'chat-header', 'messages-area', 'input-area'].forEach(id => document.getElementById(id)?.remove());
@@ -1604,12 +1610,22 @@
 
     // ── Init Inicial ──────────────────────────────────────────────────────────────
     fetch('/status').then(r => r.json()).then(states => {
+      console.log('Status received:', states);
       Object.entries(states).forEach(([id, s]) => { accountStates[id] = s; });
       updateNavDots();
       updateConnGrid();
       renderAccTabs();
-      if (Object.values(accountStates).some(s => s.ready)) loadChats();
-    }).catch(() => { });
+      const hasReady = Object.values(accountStates).some(s => s.ready);
+      console.log('Has ready account:', hasReady);
+      if (hasReady) {
+        loadChats();
+      } else {
+        document.getElementById('chat-list').innerHTML = '<p class="empty-list">Conecte uma conta para ver as conversas</p>';
+      }
+    }).catch(err => { 
+      console.error('Error fetching status:', err);
+      document.getElementById('chat-list').innerHTML = '<p class="empty-list">Erro ao conectar</p>';
+    });
   </script>
 </body>
 
