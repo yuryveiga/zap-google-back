@@ -1380,8 +1380,7 @@
           ${qrHtml}
           <div class="conn-info">
             ${isLoading ? `<div class="conn-loading-bar"><div class="conn-loading-fill" style="width:${s.loadingPercent || 15}%"></div></div>` : ''}
-            <p>${s.status === 'pending' ? 'Escaneie o QR Code no seu WhatsApp para conectar.' : (s.status === 'connected' ? 'Sua conta está pronta para uso.' : (s.status === 'disconnected' ? 'A conexão falhou.' : 'Aguarde um momento...'))}</p>
-            ${s.status === 'disconnected' && s.reason ? `<p style="color:#d9534f;font-size:12px;line-height:1.4;margin-top:4px;"><b>Motivo:</b> ${esc(s.reason)}</p>`: ''}
+            <p>${s.status === 'pending' ? 'Escaneie o QR Code no seu WhatsApp para conectar.' : (s.status === 'connected' ? 'Sua conta está pronta para uso.' : (s.status === 'disconnected' ? 'A conexão falhou. Tente reconectar.' : 'Aguarde um momento...'))}</p>
             <div class="conn-actions">${actionButtons}</div>
           </div>
         </div>
