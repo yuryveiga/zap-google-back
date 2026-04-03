@@ -1515,7 +1515,24 @@
       header.style.display = 'flex';
       header.style.alignItems = 'center';
       header.style.gap = '10px';
-      header.innerHTML = `<button onclick="closeChat()" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:4px;">&#8592;</button>${avatarEl(contactInfo?.name || activeChat.name, avatarUrl, '', activeChat.accountId)}<div id="header-info" onclick="showContactPanel('${chatId}')" style="flex:1;cursor:pointer"><div id="header-name">${esc(contactInfo?.name || activeChat.name || chatId)}</div><div id="header-sub">${contactInfo?.number || activeChat.accountId}</div></div>`;
+      header.innerHTML = `
+        <button onclick="closeChat()" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:4px;display:none;" class="back-btn">&#8592;</button>
+        ${avatarEl(contactInfo?.name || activeChat.name, avatarUrl, 'sm', activeChat.accountId)}
+        <div id="header-info" onclick="showContactPanel('${chatId}')" style="flex:1;cursor:pointer;display:flex;flex-direction:column">
+          <div id="header-name">${esc(contactInfo?.name || activeChat.name || chatId)}</div>
+          <div id="header-sub" style="font-size:12px;color:var(--text-secondary)">${contactInfo?.number || (contactInfo?.about ? contactInfo.about : activeChat.accountId)}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="closeChat()" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:6px;" class="back-btn-mobile">&#8592;</button>
+          <button onclick="alert('Pesquisar mensagens - em breve')" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:6px;" title="Pesquisar">&#128269;</button>
+          <button onclick="alert('Arquivar conversa - em breve')" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:6px;" title="Arquivar">&#128230;</button>
+          <button onclick="toggleChatMenu(event)" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:6px;" title="Mais opções">&#8942;</button>
+        </div>
+        <div id="chat-menu" style="position:absolute;top:55px;right:60px;background:var(--bg-panel);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.3);display:none;z-index:100;min-width:180px;overflow:hidden">
+          <div onclick="alert('Arquivar conversa')" style="padding:10px 16px;cursor:pointer;font-size:14px">Arquivar conversa</div>
+          <div onclick="alert('Silenciar notificações')" style="padding:10px 16px;cursor:pointer;font-size:14px">Silenciar notificações</div>
+          <div onclick="alert('Excluir conversa')" style="padding:10px 16px;cursor:pointer;font-size:14px;color:#d9534f">Excluir conversa</div>
+        </div>`;
       area.insertBefore(header, document.getElementById('contact-panel'));
 
       const msgArea = document.createElement('div');
@@ -1586,6 +1603,17 @@
       activeChat = null;
       renderChatList();
     }
+
+    function toggleChatMenu(event) {
+      event.stopPropagation();
+      const menu = document.getElementById('chat-menu');
+      menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+
+    document.addEventListener('click', function() {
+      const menu = document.getElementById('chat-menu');
+      if (menu) menu.style.display = 'none';
+    });
 
     async function showContactPanel(chatId) {
       const panel = document.getElementById('contact-panel');
