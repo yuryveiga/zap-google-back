@@ -1468,7 +1468,7 @@
         const badge = `<div class="acc-badge" style="background:${accColor(c.accountId)}">${c.accountId.replace('acc', '')}</div>`;
         const preview = c.lastMessage ? (c.lastMessage.fromMe ? '<span style="color:var(--accent)">Voce: </span>' : '') + esc(c.lastMessage.body || 'Midia') : '';
         return `
-      <div class="chat-item${activeChat?.id === c.id ? ' active' : ''}" onclick="openChat(${JSON.stringify(c.id)})">
+      <div class="chat-item${activeChat?.id === c.id ? ' active' : ''}" onclick="openChat('${c.id}')">
         <div class="avatar" style="background:${avatarColor(c.name)}">${img}${initials(c.name)}${badge}</div>
         <div class="chat-info">
           <div class="chat-row1"><span class="chat-name">${esc(c.name || c.id)}</span><span class="chat-time">${formatTime(c.lastMessage?.timestamp)}</span></div>
