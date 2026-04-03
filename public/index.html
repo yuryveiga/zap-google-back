@@ -1191,6 +1191,20 @@
       </div>
     </div>
 
+    <div class="modal-overlay" id="modal-schedule">
+      <div class="modal">
+        <h3>Agendar Mensagem</h3>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px">Escolha a data, hora e digite a mensagem.</p>
+        <input type="date" id="schedule-date" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-family:var(--font);margin-bottom:10px;outline:none" />
+        <input type="time" id="schedule-time" style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-family:var(--font);margin-bottom:10px;outline:none" />
+        <textarea id="schedule-message" rows="3" placeholder="Digite sua mensagem..." style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-primary);font-family:var(--font);margin-bottom:10px;outline:none;resize:none"></textarea>
+        <div class="modal-btns">
+          <button class="btn-cancel" onclick="closeScheduleModal()">Cancelar</button>
+          <button class="btn-ok" onclick="confirmScheduleMessage()">Agendar</button>
+        </div>
+      </div>
+    </div>
+
   </div>
   <script>
     const socket = io();
@@ -1247,6 +1261,53 @@
     // ── Modal ─────────────────────────────────────────────────────────────────────
     function openAddModal() { document.getElementById('modal-add').classList.add('active'); document.getElementById('new-acc-name').focus(); }
     function closeAddModal() { document.getElementById('modal-add').classList.remove('active'); document.getElementById('new-acc-name').value = ''; }
+
+    function openScheduleModal() {
+      const dateInput = document.getElementById('schedule-date');
+      const timeInput = document.getElementById('schedule-time');
+      const now = new Date();
+      now.setDate(now.getDate() + 1);
+      dateInput.value = now.toISOString().split('T')[0];
+      timeInput.value = '09:00';
+      document.getElementById('modal-schedule').classList.add('active');
+      document.getElementById('schedule-message').focus();
+    }
+
+    function closeScheduleModal() {
+      document.getElementById('modal-schedule').classList.remove('active');
+      document.getElementById('schedule-message').value = '';
+    }
+
+    function confirmScheduleMessage() {
+      const date = document.getElementById('schedule-date').value;
+      const time = document.getElementById('schedule-time').value;
+      const message = document.getElementById('schedule-message').value.trim();
+      if (!date || !time || !message) return alert('Preencha data, hora e mensagem.');
+      const scheduledTime = new Date(date + 'T' + time).getTime();
+      if (scheduledTime <= Date.now()) return alert('Escolha uma data/hora futura.');
+      if (!activeChat) return alert('Nenhuma conversa selecionada.');
+      const scheduleData = { to: activeChat.id, body: message, scheduledTime };
+      let scheduledMsgs = JSON.parse(localStorage.getItem('scheduledMessages') || '[]');
+      scheduledMsgs.push(scheduleData);
+      localStorage.setItem('scheduledMessages', JSON.stringify(scheduledMsgs));
+      closeScheduleModal();
+      alert('Mensagem agendada para ' + date + ' às ' + time);
+    }
+
+    setInterval(() => {
+      const now = Date.now();
+      const scheduledMsgs = JSON.parse(localStorage.getItem('scheduledMessages') || '[]');
+      const toSend = scheduledMsgs.filter(m => m.scheduledTime <= now);
+      if (toSend.length > 0) {
+        toSend.forEach(async (m) => {
+          try {
+            await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: m.to, body: m.body }) });
+          } catch (e) { console.error('Erro ao enviar mensagem agendada:', e); }
+        });
+        const remaining = scheduledMsgs.filter(m => m.scheduledTime > now);
+        localStorage.setItem('scheduledMessages', JSON.stringify(remaining));
+      }
+    }, 10000);
 
     async function confirmAddAccount() {
       const name = document.getElementById('new-acc-name').value.trim();
@@ -1517,6 +1578,7 @@
       header.style.gap = '10px';
       header.innerHTML = `
         <button onclick="closeChat()" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:4px;display:none;" class="back-btn">&#8592;</button>
+        <button onclick="openScheduleModal()" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:4px;" title="Agendar mensagem">&#128197;</button>
         ${avatarEl(contactInfo?.name || activeChat.name, avatarUrl, 'sm', activeChat.accountId)}
         <div id="header-info" onclick="showContactPanel('${chatId}')" style="flex:1;cursor:pointer;display:flex;flex-direction:column">
           <div id="header-name">${esc(contactInfo?.name || activeChat.name || chatId)}</div>
