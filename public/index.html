@@ -1438,6 +1438,17 @@
           }
         });
         allChats.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
+        
+        for (const chat of allChats) {
+          if (!avatarCache[chat.id]) {
+            try {
+              const res = await fetch('/avatar/' + encodeURIComponent(chat.id));
+              const data = await res.json();
+              if (data.url) avatarCache[chat.id] = data.url;
+            } catch (_) {}
+          }
+        }
+        
         renderChatList();
         renderAccTabs();
       } catch (e) { document.getElementById('chat-list').innerHTML = '<p class="empty-list">Erro ao carregar conversas</p>'; }
@@ -1475,10 +1486,28 @@
       const area = document.getElementById('chat-area');
       ['welcome-screen', 'chat-header', 'messages-area', 'input-area'].forEach(id => document.getElementById(id)?.remove());
 
+      let avatarUrl = avatarCache[chatId] || null;
+      let contactInfo = null;
+      
+      try {
+        const res = await fetch('/contact/' + encodeURIComponent(chatId));
+        contactInfo = await res.json();
+        if (contactInfo && !avatarUrl) {
+          try {
+            const avRes = await fetch('/avatar/' + encodeURIComponent(chatId));
+            const avData = await avRes.json();
+            if (avData.url) {
+              avatarUrl = avData.url;
+              avatarCache[chatId] = avatarUrl;
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+
       const header = document.createElement('div');
       header.id = 'chat-header';
-      header.onclick = () => alert('Informações de contato não implementadas ainda');
-      header.innerHTML = `${avatarEl(activeChat.name, null, '', activeChat.accountId)}<div id="header-info"><div id="header-name">${esc(activeChat.name || chatId)}</div><div id="header-sub">${activeChat.accountId}</div></div>`;
+      header.onclick = () => showContactPanel(chatId);
+      header.innerHTML = `${avatarEl(contactInfo?.name || activeChat.name, avatarUrl, '', activeChat.accountId)}<div id="header-info"><div id="header-name">${esc(contactInfo?.name || activeChat.name || chatId)}</div><div id="header-sub">${contactInfo?.number || activeChat.accountId}</div></div>`;
       area.insertBefore(header, document.getElementById('contact-panel'));
 
       const msgArea = document.createElement('div');
@@ -1519,14 +1548,45 @@
     function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
     function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
 
-    function deleteChat(chatId) {
-      if (!confirm('Excluir esta conversa da lista? Você pode recarregar depois.')) return;
-      if (!deletedChats.includes(chatId)) {
-        deletedChats.push(chatId);
+    function closeContactPanel() {
+      document.getElementById('contact-panel')?.classList.remove('open');
+    }
+
+    async function showContactPanel(chatId) {
+      const panel = document.getElementById('contact-panel');
+      const body = document.getElementById('cp-body');
+      body.innerHTML = '<div class="spinner"></div>';
+      panel.classList.add('open');
+
+      try {
+        const contact = await fetch('/contact/' + encodeURIComponent(chatId)).then(r => r.json());
+        let avatarUrl = avatarCache[chatId];
+        if (!avatarUrl) {
+          try {
+            const av = await fetch('/avatar/' + encodeURIComponent(chatId)).then(r => r.json());
+            if (av.url) { avatarUrl = av.url; avatarCache[chatId] = avatarUrl; }
+          } catch (_) {}
+        }
+
+        body.innerHTML = `
+          <div class="cp-cover">
+            <div class="avatar lg" style="background:${avatarColor(contact.name)}">
+              ${avatarUrl ? `<img src="${avatarUrl}" onerror="this.style.display='none'"/>` : ''}
+              ${initials(contact.name)}
+            </div>
+            <h2>${esc(contact.name || contact.number)}</h2>
+            <p>${contact.number || ''}</p>
+          </div>
+          <div class="cp-section">
+            <h4>Sobre</h4>
+            <div class="cp-field">
+              <span>${contact.about || 'Sem status'}</span>
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        body.innerHTML = '<p class="empty-list">Erro ao carregar informações</p>';
       }
-      allChats = allChats.filter(c => c.id !== chatId);
-      if (activeChat?.id === chatId) { activeChat = null; }
-      renderChatList();
     }
 
     async function sendMessage() {
