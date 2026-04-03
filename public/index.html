@@ -1535,14 +1535,26 @@
     }
 
     async function loadMessages(chatId) {
+      console.log('loadMessages called for:', chatId);
       const area = document.getElementById('messages-area');
       try {
         const r = await fetch('/messages/' + encodeURIComponent(chatId));
+        console.log('Response status:', r.status);
+        if (!r.ok) {
+          const err = await r.json();
+          console.error('API error:', err);
+          area.innerHTML = '<p class="empty-list">Erro: ' + (err.error || 'Erro desconhecido') + '</p>';
+          return;
+        }
         const msgs = await r.json();
+        console.log('Messages loaded:', msgs.length);
         area.innerHTML = '';
         msgs.forEach(m => appendMessage(m, area));
         scrollBottom();
-      } catch (e) { area.innerHTML = '<p class="empty-list">Erro ao carregar mensagens</p>'; }
+      } catch (e) { 
+        console.error('Fetch error:', e);
+        area.innerHTML = '<p class="empty-list">Erro ao carregar mensagens</p>'; 
+      }
     }
 
     function appendMessage(msg, container) {
