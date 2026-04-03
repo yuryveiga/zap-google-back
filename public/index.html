@@ -1271,9 +1271,11 @@
 
     socket.on('account_removed', ({ accountId }) => {
       delete accountStates[accountId];
+      allChats = allChats.filter(c => c.accountId !== accountId);
       updateNavDots();
       updateConnGrid();
       renderAccTabs();
+      renderChatList();
     });
 
     socket.on('new_message', (msg) => {
@@ -1389,7 +1391,16 @@
       document.getElementById('chat-list').innerHTML = '<div class="spinner"></div>';
       try {
         const r = await fetch('/chats');
-        allChats = await r.json();
+        const newChats = await r.json();
+        newChats.forEach(newChat => {
+          const existingIndex = allChats.findIndex(c => c.id === newChat.id);
+          if (existingIndex >= 0) {
+            allChats[existingIndex] = newChat;
+          } else {
+            allChats.push(newChat);
+          }
+        });
+        allChats.sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0));
         renderChatList();
         renderAccTabs();
       } catch (e) { document.getElementById('chat-list').innerHTML = '<p class="empty-list">Erro ao carregar conversas</p>'; }
