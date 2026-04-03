@@ -1806,7 +1806,27 @@
       const div = document.createElement('div');
       div.className = 'msg-bubble ' + (msg.fromMe ? 'out' : 'in');
       const time = msg.timestamp ? new Date(msg.timestamp * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
-      div.innerHTML = `<span>${esc(msg.body)}</span><div class="msg-meta"><span class="msg-time">${time}</span>${msg.fromMe ? tick(msg.ack) : ''}</div>`;
+      
+      let content = '';
+      if (msg.hasMedia && msg.mediaUrl) {
+        if (msg.type === 'image') {
+          content = `<img src="${msg.mediaUrl}" style="max-width:250px;border-radius:8px;cursor:pointer" onclick="window.open(this.src)">`;
+        } else if (msg.type === 'video') {
+          content = `<video src="${msg.mediaUrl}" controls style="max-width:250px;border-radius:8px"></video>`;
+        } else {
+          content = `<div style="display:flex;align-items:center;gap:8px;padding:8px;background:rgba(0,0,0,0.1);border-radius:8px;max-width:250px"><span style="font-size:24px">&#128196;</span><span style="font-size:12px;word-break:break-all">${esc(msg.body)}</span></div>`;
+        }
+      } else if (msg.hasMedia && msg.type === 'image') {
+        content = `<div style="background:rgba(0,0,0,0.1);padding:10px;border-radius:8px"><span style="color:var(--text-secondary);font-size:12px">&#128247; Imagem</span></div>`;
+      } else if (msg.hasMedia && msg.type === 'video') {
+        content = `<div style="background:rgba(0,0,0,0.1);padding:10px;border-radius:8px"><span style="color:var(--text-secondary);font-size:12px">&#127909; Vídeo</span></div>`;
+      } else if (msg.hasMedia) {
+        content = `<div style="background:rgba(0,0,0,0.1);padding:10px;border-radius:8px"><span style="color:var(--text-secondary);font-size:12px">&#128206; Arquivo</span></div>`;
+      } else {
+        content = `<span>${esc(msg.body)}</span>`;
+      }
+      
+      div.innerHTML = `${content}<div class="msg-meta"><span class="msg-time">${time}</span>${msg.fromMe ? tick(msg.ack) : ''}</div>`;
       area.appendChild(div);
     }
 

@@ -381,15 +381,28 @@ app.get('/messages/:fullId', authenticateToken, async (req, res) => {
     const chat = await withRetry(() => clients[accountId].getChatById(chatId));
     const msgs = await withRetry(() => chat.fetchMessages({ limit }));
     try { await chat.sendSeen(); } catch (_) { }
-    res.json(msgs.map(m => ({
-      id: m.id._serialized,
-      body: m.body || (m.hasMedia ? 'Midia' : ''),
-      fromMe: m.fromMe,
-      timestamp: m.timestamp,
-      type: m.type,
-      hasMedia: m.hasMedia,
-      ack: m.ack,
-    })));
+    const msgsWithMedia = await Promise.all(msgs.map(async m => {
+      let mediaUrl = null;
+      if (m.hasMedia) {
+        try {
+          const media = await m.downloadMedia();
+          if (media) {
+            mediaUrl = `data:${media.mimetype};base64,${media.data}`;
+          }
+        } catch (_) {}
+      }
+      return {
+        id: m.id._serialized,
+        body: m.body || (m.hasMedia ? 'Midia' : ''),
+        fromMe: m.fromMe,
+        timestamp: m.timestamp,
+        type: m.type,
+        hasMedia: m.hasMedia,
+        mediaUrl: mediaUrl,
+        ack: m.ack,
+      };
+    }));
+    res.json(msgsWithMedia);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
