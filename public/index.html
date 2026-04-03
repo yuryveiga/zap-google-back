@@ -170,6 +170,19 @@
       flex: 1;
     }
 
+    #sidebar-header .nav-btn {
+      background: transparent;
+      color: var(--text-secondary);
+      width: 32px;
+      height: 32px;
+      font-size: 18px;
+    }
+
+    #sidebar-header .nav-btn:hover {
+      background: var(--bg-hover);
+      color: var(--accent);
+    }
+
     #search-bar {
       padding: 8px 12px;
       background: var(--bg-sidebar);
@@ -245,10 +258,32 @@
       border-bottom: 1px solid var(--border);
       transition: background var(--transition);
       min-height: 72px;
+      position: relative;
     }
 
     .chat-item:hover {
       background: var(--bg-hover);
+    }
+
+    .chat-item:hover .del-chat-btn {
+      opacity: 1;
+    }
+
+    .del-chat-btn {
+      opacity: 0;
+      background: transparent;
+      border: none;
+      color: var(--text-meta);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all var(--transition);
+    }
+
+    .del-chat-btn:hover {
+      background: #d9534f;
+      color: #fff;
     }
 
     .chat-item.active {
@@ -1091,6 +1126,7 @@
         <div id="sidebar-header">
           <div class="avatar sm" style="background:#667781">W</div>
           <span>WhatsApp</span>
+          <button class="nav-btn" onclick="loadChats()" title="Recarregar conversas" style="width:32px;height:32px;font-size:16px">&#8635;</button>
         </div>
         <div id="search-bar">
           <input type="text" id="search-input" placeholder="Pesquisar conversas" oninput="renderChatList()" />
@@ -1167,6 +1203,7 @@
 
     const COLORS = ['#e74c3c', '#e67e22', '#2ecc71', '#3498db', '#9b59b6', '#1abc9c', '#e91e63', '#00bcd4', '#ff5722', '#607d8b'];
     const ACC_COLORS = { acc1: '#00a884', acc2: '#3498db', acc3: '#9b59b6', acc4: '#e74c3c' };
+    let deletedChats = []; // IDs de conversas excluídas
 
     function avatarColor(name) { let h = 0; for (let i = 0; i < (name || '').length; i++) h += name.charCodeAt(i); return COLORS[h % COLORS.length]; }
     function accColor(id) { return ACC_COLORS[id] || '#667781'; }
@@ -1392,7 +1429,8 @@
       try {
         const r = await fetch('/chats');
         const newChats = await r.json();
-        newChats.forEach(newChat => {
+        const filteredNew = newChats.filter(c => !deletedChats.includes(c.id));
+        filteredNew.forEach(newChat => {
           const existingIndex = allChats.findIndex(c => c.id === newChat.id);
           if (existingIndex >= 0) {
             allChats[existingIndex] = newChat;
@@ -1426,6 +1464,7 @@
           <div class="chat-row1"><span class="chat-name">${esc(c.name || c.id)}</span><span class="chat-time">${formatTime(c.lastMessage?.timestamp)}</span></div>
           <div class="chat-row2"><span class="chat-preview">${preview}</span>${c.unreadCount > 0 ? `<span class="unread-badge">${c.unreadCount}</span>` : ''}</div>
         </div>
+        <button class="del-chat-btn" onclick="event.stopPropagation();deleteChat('${c.id}')" title="Excluir">&#10005;</button>
       </div>`;
       }).join('');
     }
@@ -1480,6 +1519,16 @@
     function scrollBottom() { const a = document.getElementById('messages-area'); if (a) a.scrollTop = a.scrollHeight; }
     function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
     function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
+
+    function deleteChat(chatId) {
+      if (!confirm('Excluir esta conversa da lista? Você pode recarregar depois.')) return;
+      if (!deletedChats.includes(chatId)) {
+        deletedChats.push(chatId);
+      }
+      allChats = allChats.filter(c => c.id !== chatId);
+      if (activeChat?.id === chatId) { activeChat = null; }
+      renderChatList();
+    }
 
     async function sendMessage() {
       if (!activeChat) return;
